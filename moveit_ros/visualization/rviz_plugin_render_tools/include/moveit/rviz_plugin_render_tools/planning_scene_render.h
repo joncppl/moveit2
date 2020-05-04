@@ -47,6 +47,7 @@ namespace moveit_rviz_plugin
 MOVEIT_CLASS_FORWARD(RobotStateVisualization)
 MOVEIT_CLASS_FORWARD(RenderShapes)
 MOVEIT_CLASS_FORWARD(PlanningSceneRender)
+MOVEIT_CLASS_FORWARD(TextThatActuallyGoesWhereYouTellItToo)
 
 class PlanningSceneRender
 {
@@ -76,5 +77,6 @@ private:
   rviz_common::DisplayContext* context_;
   RenderShapesPtr render_shapes_;
   RobotStateVisualizationPtr scene_robot_;
+  std::vector<TextThatActuallyGoesWhereYouTellItToo *> render_texts_;
 };
 }

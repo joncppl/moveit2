@@ -38,12 +38,30 @@
 #include <moveit/rviz_plugin_render_tools/robot_state_visualization.h>
 #include <moveit/rviz_plugin_render_tools/render_shapes.h>
 #include <rviz_common/display_context.hpp>
-
+#include <rviz_rendering/objects/movable_text.hpp>
 #include <OgreSceneNode.h>
 #include <OgreSceneManager.h>
 
 namespace moveit_rviz_plugin
 {
+
+class TextThatActuallyGoesWhereYouTellItToo : public Ogre::SceneNode
+{
+public:
+  TextThatActuallyGoesWhereYouTellItToo(Ogre::SceneManager * manager, const std::string & text, const Ogre::Vector3 & position)
+    : SceneNode(manager, text + "_text_node"),
+      m_text(text, "Liberation Sans", 0.03, Ogre::ColourValue::Black)
+  {
+    Ogre::SceneNode::attachObject(&m_text);
+    setPosition(position);
+    m_text.showOnTop(true);
+  }
+
+private:
+  rviz_rendering::MovableText m_text;
+};
+
+
 PlanningSceneRender::PlanningSceneRender(Ogre::SceneNode* node, rviz_common::DisplayContext* context,
                                          const RobotStateVisualizationPtr& robot)
   : planning_scene_geometry_node_(node->createChildSceneNode()), context_(context), scene_robot_(robot)
@@ -59,6 +77,11 @@ PlanningSceneRender::~PlanningSceneRender()
 void PlanningSceneRender::clear()
 {
   render_shapes_->clear();
+  for (auto rt : render_texts_) {
+    planning_scene_geometry_node_->removeChild(rt);
+    delete rt;
+  }
+  render_texts_.clear();
 }
 
 void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningSceneConstPtr& scene,
@@ -101,9 +124,24 @@ void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningScen
       color.b = c.b;
       alpha = c.a;
     }
-    for (std::size_t j = 0; j < object->shapes_.size(); ++j)
-      render_shapes_->renderShape(planning_scene_geometry_node_, object->shapes_[j].get(), object->shape_poses_[j],
-                                  octree_voxel_rendering, octree_color_mode, color, alpha);
+    Eigen::Vector3f average_position(0.f, 0.f, 0.f);
+    for (std::size_t j = 0; j < object->shapes_.size(); ++j) {
+      render_shapes_->renderShape(planning_scene_geometry_node_,
+        object->shapes_[j].get(),
+        object->shape_poses_[j],
+        octree_voxel_rendering,
+        octree_color_mode,
+        color,
+        alpha);
+      auto tl_iso = object->shape_poses_[j].translation();
+      auto tl_vec = Eigen::Vector3f(tl_iso.x(), tl_iso.y(), tl_iso.z());
+      average_position += tl_vec;
+    }
+    average_position /= object->shapes_.size();
+    auto position = Ogre::Vector3(average_position.x(), average_position.y(), average_position.z());
+    auto text_object = new TextThatActuallyGoesWhereYouTellItToo(context_->getSceneManager(), id, position);
+    planning_scene_geometry_node_->addChild(text_object);
+    render_texts_.emplace_back(text_object);
   }
 }
 }  // namespace moveit_rviz_plugin
