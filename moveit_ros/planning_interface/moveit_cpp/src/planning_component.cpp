@@ -140,6 +140,7 @@ PlanningComponent::PlanSolution PlanningComponent::plan(const PlanRequestParamet
   req.group_name = group_name_;
   req.planner_id = parameters.planner_id;
   req.allowed_planning_time = parameters.planning_time;
+  req.num_planning_attempts = parameters.planning_attempts;
   req.max_velocity_scaling_factor = parameters.max_velocity_scaling_factor;
   req.max_acceleration_scaling_factor = parameters.max_acceleration_scaling_factor;
   if (workspace_parameters_set_)
