@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.2)
 project(moveit_setup_assistant)
 
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -55,6 +56,7 @@ catkin_package(
   CATKIN_DEPENDS
     moveit_ros_planning
     moveit_ros_visualization
+    roscpp
 )
 
 # Header files that need Qt Moc pre-processing for use with Qt signals, etc:
@@ -133,9 +135,10 @@ target_link_libraries(${PROJECT_NAME}_widgets
 add_executable(${PROJECT_NAME} src/setup_assistant_main.cpp)
 target_link_libraries(${PROJECT_NAME}
   ${PROJECT_NAME}_widgets ${PROJECT_NAME}_tools
-  ${QT_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} log4cxx)
+  ${QT_LIBRARIES} ${catkin_LIBRARIES} ${Boost_LIBRARIES} log4cxx
+)
 
-add_executable(${PROJECT_NAME}_updater src/collisions_updater.cpp )
+add_executable(${PROJECT_NAME}_updater src/collisions_updater.cpp)
 target_link_libraries(${PROJECT_NAME}_updater
   ${PROJECT_NAME}_tools ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 set_target_properties(${PROJECT_NAME}_updater

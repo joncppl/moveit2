@@ -38,6 +38,7 @@
 
 #include <moveit/robot_model/link_model.h>
 #include <moveit/transforms/transforms.h>
+#include <geometric_shapes/check_isometry.h>
 #include <eigen_stl_containers/eigen_stl_containers.h>
 #include <boost/function.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
@@ -50,16 +51,16 @@ namespace core
 class AttachedBody;
 typedef boost::function<void(AttachedBody* body, bool attached)> AttachedBodyCallback;
 
-/** @brief Object defining bodies that can be attached to robot
- *  links. This is useful when handling objects picked up by
- *  the robot. */
+/** @brief Object defining bodies that can be attached to robot links.
+ *
+ * This is useful when handling objects picked up by the robot. */
 class AttachedBody
 {
 public:
-  /** \brief Construct an attached body for a specified \e link. The name of this body is \e id and it consists of \e
-     shapes that
-      attach to the link by the transforms \e attach_trans. The set of links that are allowed to be touched by this
-     object is specified by \e touch_links. */
+  /** \brief Construct an attached body for a specified \e link.
+   *
+   * The name of this body is \e id and it consists of \e shapes that attach to the link by the transforms
+   * \e attach_trans. The set of links that are allowed to be touched by this object is specified by \e touch_links. */
   AttachedBody(const LinkModel* link, const std::string& id, const std::vector<shapes::ShapeConstPtr>& shapes,
                const EigenSTL::vector_Isometry3d& attach_trans, const std::set<std::string>& touch_links,
                const trajectory_msgs::msg::JointTrajectory& attach_posture,
@@ -105,35 +106,55 @@ public:
     return detach_posture_;
   }
 
-  /** \brief Get the fixed transforms (the transforms to the shapes associated with this body) */
+  /** \brief Get the fixed transforms (the transforms to the shapes of this body, relative to the link). The returned
+   *  transforms are guaranteed to be valid isometries. */
   const EigenSTL::vector_Isometry3d& getFixedTransforms() const
   {
     return attach_trans_;
   }
 
-  /** \brief Get subframes of this object. */
+  /** \brief Get subframes of this object (relative to the link). The returned transforms are guaranteed to be valid
+   *  isometries. */
   const moveit::core::FixedTransformsMap& getSubframeTransforms() const
   {
     return subframe_poses_;
   }
 
-  /** \brief Set all subframes of this object. */
+  /** \brief Set all subframes of this object.
+   *
+   * Use these to define points of interest on the object to plan with
+   * (e.g. screwdriver/tip, kettle/spout, mug/base).
+   */
   void setSubframeTransforms(const moveit::core::FixedTransformsMap& subframe_poses)
   {
+    for (const auto& t : subframe_poses)
+    {
+      ASSERT_ISOMETRY(t.second)  // unsanitized input, could contain a non-isometry
+    }
     subframe_poses_ = subframe_poses;
   }
 
-  /** \brief Get the fixed transform to a named subframe on this body.
+  /** \brief Get the fixed transform to a named subframe on this body (relative to the robot link)
+   *
    * The frame_name needs to have the object's name prepended (e.g. "screwdriver/tip" returns true if the object's
-   * name is "screwdriver"). Returns an identity transform if frame_name is unknown (and set found to false). */
+   * name is "screwdriver"). Returns an identity transform if frame_name is unknown (and set found to false).
+   * The returned transform is guaranteed to be a valid isometry. */
   const Eigen::Isometry3d& getSubframeTransform(const std::string& frame_name, bool* found = nullptr) const;
 
+  /** \brief Get the fixed transform to a named subframe on this body.
+   * The frame_name needs to have the object's name prepended (e.g. "screwdriver/tip" returns true if the object's
+   * name is "screwdriver"). Returns an identity transform if frame_name is unknown (and set found to false).
+   * The returned transform is guaranteed to be a valid isometry. */
+  const Eigen::Isometry3d& getGlobalSubframeTransform(const std::string& frame_name, bool* found = nullptr) const;
+
   /** \brief Check whether a subframe of given @frame_name is present in this object.
+   *
    * The frame_name needs to have the object's name prepended (e.g. "screwdriver/tip" returns true if the object's
    * name is "screwdriver"). */
   bool hasSubframeTransform(const std::string& frame_name) const;
 
-  /** \brief Get the global transforms for the collision bodies */
+  /** \brief Get the global transforms for the collision bodies. The returned transforms are guaranteed to be valid
+   *  isometries. */
   const EigenSTL::vector_Isometry3d& getGlobalCollisionBodyTransforms() const
   {
     return global_collision_body_transforms_;
@@ -145,12 +166,8 @@ public:
   /** \brief Set the scale for the shapes of this attached object */
   void setScale(double scale);
 
-  /** \brief Recompute global_collision_body_transform given the transform of the parent link*/
-  void computeTransform(const Eigen::Isometry3d& parent_link_global_transform)
-  {
-    for (std::size_t i = 0; i < global_collision_body_transforms_.size(); ++i)
-      global_collision_body_transforms_[i] = parent_link_global_transform * attach_trans_[i];
-  }
+  /** \brief Recompute global_collision_body_transform given the transform of the parent link */
+  void computeTransform(const Eigen::Isometry3d& parent_link_global_transform);
 
 private:
   /** \brief The link that owns this attached body */
@@ -175,11 +192,11 @@ private:
   /** \brief The global transforms for these attached bodies (computed by forward kinematics) */
   EigenSTL::vector_Isometry3d global_collision_body_transforms_;
 
-  /** \brief Transforms to subframes on the object. Transforms are relative to the link.
-   *  Use these to define points of interest on the object to plan with
-   *  (e.g. screwdriver/tip, kettle/spout, mug/base).
-   * */
+  /** \brief Transforms to subframes on the object. Transforms are relative to the link. */
   moveit::core::FixedTransformsMap subframe_poses_;
+
+  /** \brief Transforms to subframes on the object, relative to the model frame. */
+  moveit::core::FixedTransformsMap global_subframe_poses_;
 };
-}
-}
+}  // namespace core
+}  // namespace moveit

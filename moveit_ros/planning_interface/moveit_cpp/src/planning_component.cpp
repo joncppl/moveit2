@@ -62,10 +62,19 @@ PlanningComponent::PlanningComponent(const std::string& group_name, const MoveIt
     throw std::runtime_error(error);
   }
   planning_pipeline_names_ = moveit_cpp_->getPlanningPipelineNames(group_name);
+  plan_request_parameters_.load(node_);
+  RCLCPP_DEBUG_STREAM(
+      LOGGER, "Plan request parameters loaded with --"
+                  << " planning_pipeline: " << plan_request_parameters_.planning_pipeline << ","
+                  << " planner_id: " << plan_request_parameters_.planner_id << ","
+                  << " planning_time: " << plan_request_parameters_.planning_time << ","
+                  << " planning_attempts: " << plan_request_parameters_.planning_attempts << ","
+                  << " max_velocity_scaling_factor: " << plan_request_parameters_.max_velocity_scaling_factor << ","
+                  << " max_acceleration_scaling_factor: " << plan_request_parameters_.max_acceleration_scaling_factor);
 }
 
 PlanningComponent::PlanningComponent(const std::string& group_name, const rclcpp::Node::SharedPtr& node)
-  : node_(node), moveit_cpp_(new MoveItCpp(node)), group_name_(group_name)
+  : PlanningComponent(group_name, std::make_shared<MoveItCpp>(node))
 {
   joint_model_group_ = moveit_cpp_->getRobotModel()->getJointModelGroup(group_name);
   if (!joint_model_group_)
@@ -81,18 +90,6 @@ PlanningComponent::~PlanningComponent()
 {
   RCLCPP_INFO(LOGGER, "Deleting PlanningComponent '%s'", group_name_.c_str());
   clearContents();
-}
-
-PlanningComponent& PlanningComponent::operator=(PlanningComponent&& other)
-{
-  if (this != &other)
-  {
-    this->considered_start_state_ = other.considered_start_state_;
-    this->workspace_parameters_ = other.workspace_parameters_;
-    this->last_plan_solution_ = other.last_plan_solution_;
-    other.clearContents();
-  }
-  return *this;
 }
 
 const std::vector<std::string> PlanningComponent::getNamedTargetStates()
@@ -139,6 +136,7 @@ PlanningComponent::PlanSolution PlanningComponent::plan(const PlanRequestParamet
   ::planning_interface::MotionPlanRequest req;
   req.group_name = group_name_;
   req.planner_id = parameters.planner_id;
+  req.num_planning_attempts = std::max(1, parameters.planning_attempts);
   req.allowed_planning_time = parameters.planning_time;
   req.num_planning_attempts = parameters.planning_attempts;
   req.max_velocity_scaling_factor = parameters.max_velocity_scaling_factor;
@@ -199,29 +197,22 @@ PlanningComponent::PlanSolution PlanningComponent::plan(const PlanRequestParamet
 
 PlanningComponent::PlanSolution PlanningComponent::plan()
 {
-  PlanRequestParameters default_parameters;
-  default_parameters.planning_attempts = 1;
-  default_parameters.planning_time = 5.0;
-  default_parameters.max_velocity_scaling_factor = 1.0;
-  default_parameters.max_acceleration_scaling_factor = 1.0;
-  if (!planning_pipeline_names_.empty())
-    default_parameters.planning_pipeline = *planning_pipeline_names_.begin();
-  return plan(default_parameters);
+  return plan(plan_request_parameters_);
 }
 
-bool PlanningComponent::setStartState(const robot_state::RobotState& start_state)
+bool PlanningComponent::setStartState(const moveit::core::RobotState& start_state)
 {
-  considered_start_state_.reset(new robot_state::RobotState(start_state));
+  considered_start_state_.reset(new moveit::core::RobotState(start_state));
   return true;
 }
 
-robot_state::RobotStatePtr PlanningComponent::getStartState()
+moveit::core::RobotStatePtr PlanningComponent::getStartState()
 {
   if (considered_start_state_)
     return considered_start_state_;
   else
   {
-    robot_state::RobotStatePtr s;
+    moveit::core::RobotStatePtr s;
     moveit_cpp_->getCurrentState(s, 1.0);
     return s;
   }
@@ -235,7 +226,7 @@ bool PlanningComponent::setStartState(const std::string& start_state_name)
     RCLCPP_ERROR(LOGGER, "No predefined joint state found for target name '%s'", start_state_name.c_str());
     return false;
   }
-  robot_state::RobotState start_state(moveit_cpp_->getRobotModel());
+  moveit::core::RobotState start_state(moveit_cpp_->getRobotModel());
   start_state.setToDefaultValues(joint_model_group_, start_state_name);
   return setStartState(start_state);
 }
@@ -277,7 +268,7 @@ bool PlanningComponent::setGoal(const std::vector<moveit_msgs::msg::Constraints>
   return true;
 }
 
-bool PlanningComponent::setGoal(const robot_state::RobotState& goal_state)
+bool PlanningComponent::setGoal(const moveit::core::RobotState& goal_state)
 {
   current_goal_constraints_ = { kinematic_constraints::constructGoalConstraints(goal_state, joint_model_group_) };
   return true;
@@ -297,7 +288,7 @@ bool PlanningComponent::setGoal(const std::string& goal_state_name)
     RCLCPP_ERROR(LOGGER, "No predefined joint state found for target name '%s'", goal_state_name.c_str());
     return false;
   }
-  robot_state::RobotState goal_state(moveit_cpp_->getRobotModel());
+  moveit::core::RobotState goal_state(moveit_cpp_->getRobotModel());
   goal_state.setToDefaultValues(joint_model_group_, goal_state_name);
   return setGoal(goal_state);
 }

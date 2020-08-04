@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.2)
 project(moveit_ros_move_group)
 
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -27,8 +28,11 @@ catkin_package(
   INCLUDE_DIRS
     include
   CATKIN_DEPENDS
+    actionlib
     moveit_core
     moveit_ros_planning
+    roscpp
+    std_srvs
     tf2_geometry_msgs
 )
 
@@ -39,7 +43,7 @@ include_directories(${catkin_INCLUDE_DIRS}
 add_library(moveit_move_group_capabilities_base
   src/move_group_context.cpp
   src/move_group_capability.cpp
-  )
+)
 set_target_properties(moveit_move_group_capabilities_base PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 add_dependencies(moveit_move_group_capabilities_base ${catkin_EXPORTED_TARGETS}) # wait until all *_msgs packages are finished being built
 
@@ -59,7 +63,7 @@ add_library(moveit_move_group_default_capabilities
   src/default_capabilities/apply_planning_scene_service_capability.cpp
   src/default_capabilities/clear_octomap_service_capability.cpp
   src/default_capabilities/tf_publisher_capability.cpp
-  )
+)
 set_target_properties(moveit_move_group_default_capabilities PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 add_dependencies(moveit_move_group_default_capabilities ${catkin_EXPORTED_TARGETS})
 
@@ -69,22 +73,26 @@ target_link_libraries(moveit_move_group_default_capabilities moveit_move_group_c
 target_link_libraries(list_move_group_capabilities ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 install(TARGETS move_group list_move_group_capabilities
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 install(TARGETS moveit_move_group_capabilities_base moveit_move_group_default_capabilities
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 
 install(DIRECTORY include/ DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION})
 
 install(PROGRAMS
   scripts/load_map scripts/save_map DESTINATION
-  ${CATKIN_PACKAGE_BIN_DESTINATION})
+  ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 install(FILES
   default_capabilities_plugin_description.xml
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
 
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)

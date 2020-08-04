@@ -37,6 +37,7 @@
 #include <moveit/trajectory_execution_manager/trajectory_execution_manager.h>
 #include <moveit/robot_state/robot_state.h>
 // #include <moveit_ros_planning/TrajectoryExecutionDynamicReconfigureConfig.h>
+#include <geometric_shapes/check_isometry.h>
 // #include <dynamic_reconfigure/server.h>
 #include <tf2_eigen/tf2_eigen.h>
 
@@ -55,35 +56,36 @@ static const double DEFAULT_CONTROLLER_GOAL_DURATION_SCALING =
 
 // using namespace moveit_ros_planning; // Used for dynamic_reconfigure
 
-class TrajectoryExecutionManager::DynamicReconfigureImpl
-{
-public:
-  DynamicReconfigureImpl(TrajectoryExecutionManager* owner)
-    : owner_(owner) /*, dynamic_reconfigure_server_(ros::NodeHandle("~/trajectory_execution"))*/
-  {
-    // TODO: generate a similar thing for ros2 using the parameters
-    // dynamic_reconfigure_server_.setCallback(
-    //     boost::bind(&DynamicReconfigureImpl::dynamicReconfigureCallback, this, _1, _2));
-  }
-
-private:
-  // TODO: generate a similar thing for ros2 using the parameters
-  // void dynamicReconfigureCallback(TrajectoryExecutionDynamicReconfigureConfig& config, uint32_t level)
-  // {
-  //   owner_->enableExecutionDurationMonitoring(config.execution_duration_monitoring);
-  //   owner_->setAllowedExecutionDurationScaling(config.allowed_execution_duration_scaling);
-  //   owner_->setAllowedGoalDurationMargin(config.allowed_goal_duration_margin);
-  //   owner_->setExecutionVelocityScaling(config.execution_velocity_scaling);
-  //   owner_->setAllowedStartTolerance(config.allowed_start_tolerance);
-  //   owner_->setWaitForTrajectoryCompletion(config.wait_for_trajectory_completion);
-  // }
-
-  TrajectoryExecutionManager* owner_;
-  // dynamic_reconfigure::Server<TrajectoryExecutionDynamicReconfigureConfig> dynamic_reconfigure_server_;
-};
+// TODO(henningkayser): re-enable dynamic reconfigure behavior
+// class TrajectoryExecutionManager::DynamicReconfigureImpl
+// {
+// public:
+//   DynamicReconfigureImpl(TrajectoryExecutionManager* owner)
+//     : owner_(owner) /*, dynamic_reconfigure_server_(ros::NodeHandle("~/trajectory_execution"))*/
+//   {
+//     // TODO: generate a similar thing for ros2 using the parameters
+//     // dynamic_reconfigure_server_.setCallback(
+//     //     boost::bind(&DynamicReconfigureImpl::dynamicReconfigureCallback, this, _1, _2));
+//   }
+//
+// private:
+//   // TODO: generate a similar thing for ros2 using the parameters
+//   // void dynamicReconfigureCallback(TrajectoryExecutionDynamicReconfigureConfig& config, uint32_t level)
+//   // {
+//   //   owner_->enableExecutionDurationMonitoring(config.execution_duration_monitoring);
+//   //   owner_->setAllowedExecutionDurationScaling(config.allowed_execution_duration_scaling);
+//   //   owner_->setAllowedGoalDurationMargin(config.allowed_goal_duration_margin);
+//   //   owner_->setExecutionVelocityScaling(config.execution_velocity_scaling);
+//   //   owner_->setAllowedStartTolerance(config.allowed_start_tolerance);
+//   //   owner_->setWaitForTrajectoryCompletion(config.wait_for_trajectory_completion);
+//   // }
+//
+//   TrajectoryExecutionManager* owner_;
+//   // dynamic_reconfigure::Server<TrajectoryExecutionDynamicReconfigureConfig> dynamic_reconfigure_server_;
+// };
 
 TrajectoryExecutionManager::TrajectoryExecutionManager(const rclcpp::Node::SharedPtr& node,
-                                                       const robot_model::RobotModelConstPtr& robot_model,
+                                                       const moveit::core::RobotModelConstPtr& robot_model,
                                                        const planning_scene_monitor::CurrentStateMonitorPtr& csm)
   : node_(node), robot_model_(robot_model), csm_(csm)
 {
@@ -93,7 +95,7 @@ TrajectoryExecutionManager::TrajectoryExecutionManager(const rclcpp::Node::Share
 }
 
 TrajectoryExecutionManager::TrajectoryExecutionManager(const rclcpp::Node::SharedPtr& node,
-                                                       const robot_model::RobotModelConstPtr& robot_model,
+                                                       const moveit::core::RobotModelConstPtr& robot_model,
                                                        const planning_scene_monitor::CurrentStateMonitorPtr& csm,
                                                        bool manage_controllers)
   : node_(node), robot_model_(robot_model), csm_(csm), manage_controllers_(manage_controllers)
@@ -105,12 +107,12 @@ TrajectoryExecutionManager::~TrajectoryExecutionManager()
 {
   run_continuous_execution_thread_ = false;
   stopExecution(true);
-  delete reconfigure_impl_;
+  // delete reconfigure_impl_;
 }
 
 void TrajectoryExecutionManager::initialize()
 {
-  reconfigure_impl_ = nullptr;
+  // reconfigure_impl_ = nullptr;
   verbose_ = false;
   execution_complete_ = true;
   stop_continuous_execution_ = false;
@@ -178,7 +180,7 @@ void TrajectoryExecutionManager::initialize()
   event_topic_subscriber_ = node_->create_subscription<std_msgs::msg::String>(
       EXECUTION_EVENT_TOPIC, 100, std::bind(&TrajectoryExecutionManager::receiveEvent, this, std::placeholders::_1));
 
-  reconfigure_impl_ = new DynamicReconfigureImpl(this);
+  // reconfigure_impl_ = new DynamicReconfigureImpl(this);
 
   if (manage_controllers_)
     RCLCPP_INFO(LOGGER, "Trajectory execution is managing controllers");
@@ -817,10 +819,10 @@ bool TrajectoryExecutionManager::distributeTrajectory(const moveit_msgs::msg::Ro
   std::set<std::string> actuated_joints_single;
   for (const std::string& joint_name : trajectory.joint_trajectory.joint_names)
   {
-    const robot_model::JointModel* jm = robot_model_->getJointModel(joint_name);
+    const moveit::core::JointModel* jm = robot_model_->getJointModel(joint_name);
     if (jm)
     {
-      if (jm->isPassive() || jm->getMimic() != nullptr || jm->getType() == robot_model::JointModel::FIXED)
+      if (jm->isPassive() || jm->getMimic() != nullptr || jm->getType() == moveit::core::JointModel::FIXED)
         continue;
       actuated_joints_single.insert(jm->getName());
     }
@@ -947,7 +949,7 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
 
   RCLCPP_INFO(LOGGER, "Validating trajectory with allowed_start_tolerance %g", allowed_start_tolerance_);
 
-  robot_state::RobotStatePtr current_state;
+  moveit::core::RobotStatePtr current_state;
   if (!csm_->waitForCurrentState(rclcpp::Clock().now()) || !(current_state = csm_->getCurrentState()))
   {
     RCLCPP_WARN(LOGGER, "Failed to validate trajectory: couldn't receive full current joint state within 1s");
@@ -969,7 +971,7 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
 
       for (std::size_t i = 0, end = joint_names.size(); i < end; ++i)
       {
-        const robot_model::JointModel* jm = current_state->getJointModel(joint_names[i]);
+        const moveit::core::JointModel* jm = current_state->getJointModel(joint_names[i]);
         if (!jm)
         {
           RCLCPP_ERROR_STREAM(LOGGER, "Unknown joint in trajectory: " << joint_names[i]);
@@ -1005,7 +1007,7 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
 
       for (std::size_t i = 0, end = joint_names.size(); i < end; ++i)
       {
-        const robot_model::JointModel* jm = current_state->getJointModel(joint_names[i]);
+        const moveit::core::JointModel* jm = current_state->getJointModel(joint_names[i]);
         if (!jm)
         {
           RCLCPP_ERROR_STREAM(LOGGER, "Unknown joint in trajectory: " << joint_names[i]);
@@ -1015,11 +1017,13 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
         // compute difference (offset vector and rotation angle) between current transform
         // and start transform in trajectory
         Eigen::Isometry3d cur_transform, start_transform;
+        // computeTransform() computes a valid isometry by contract
         jm->computeTransform(current_state->getJointPositions(jm), cur_transform);
         start_transform = tf2::transformToEigen(transforms[i]);
+        ASSERT_ISOMETRY(start_transform)  // unsanitized input, could contain a non-isometry
         Eigen::Vector3d offset = cur_transform.translation() - start_transform.translation();
         Eigen::AngleAxisd rotation;
-        rotation.fromRotationMatrix(cur_transform.rotation().transpose() * start_transform.rotation());
+        rotation.fromRotationMatrix(cur_transform.linear().transpose() * start_transform.linear());
         if ((offset.array() > allowed_start_tolerance_).any() || rotation.angle() > allowed_start_tolerance_)
         {
           RCLCPP_ERROR_STREAM(LOGGER, "\nInvalid Trajectory: start point deviates from current robot state more than "
@@ -1046,8 +1050,8 @@ bool TrajectoryExecutionManager::configure(TrajectoryExecutionContext& context,
   std::set<std::string> actuated_joints;
 
   auto is_actuated = [this](const std::string& joint_name) -> bool {
-    const robot_model::JointModel* jm = robot_model_->getJointModel(joint_name);
-    return (jm && !jm->isPassive() && !jm->getMimic() && jm->getType() != robot_model::JointModel::FIXED);
+    const moveit::core::JointModel* jm = robot_model_->getJointModel(joint_name);
+    return (jm && !jm->isPassive() && !jm->getMimic() && jm->getType() != moveit::core::JointModel::FIXED);
   };
   for (const std::string& joint_name : trajectory.multi_dof_joint_trajectory.joint_names)
     if (is_actuated(joint_name))
@@ -1553,7 +1557,7 @@ bool TrajectoryExecutionManager::waitForRobotToStop(const TrajectoryExecutionCon
   auto start = std::chrono::system_clock::now();
   double time_remaining = wait_time;
 
-  robot_state::RobotStatePtr prev_state, cur_state;
+  moveit::core::RobotStatePtr prev_state, cur_state;
   prev_state = csm_->getCurrentState();
   prev_state->enforceBounds();
 
@@ -1579,7 +1583,7 @@ bool TrajectoryExecutionManager::waitForRobotToStop(const TrajectoryExecutionCon
 
       for (std::size_t i = 0; i < n && !moved; ++i)
       {
-        const robot_model::JointModel* jm = cur_state->getJointModel(joint_names[i]);
+        const moveit::core::JointModel* jm = cur_state->getJointModel(joint_names[i]);
         if (!jm)
           continue;  // joint vanished from robot state (shouldn't happen), but we don't care
 
@@ -1627,7 +1631,7 @@ moveit_controller_manager::ExecutionStatus TrajectoryExecutionManager::getLastEx
 
 bool TrajectoryExecutionManager::ensureActiveControllersForGroup(const std::string& group)
 {
-  const robot_model::JointModelGroup* joint_model_group = robot_model_->getJointModelGroup(group);
+  const moveit::core::JointModelGroup* joint_model_group = robot_model_->getJointModelGroup(group);
   if (joint_model_group)
     return ensureActiveControllersForJoints(joint_model_group->getJointModelNames());
   else
@@ -1644,10 +1648,10 @@ bool TrajectoryExecutionManager::ensureActiveControllersForJoints(const std::vec
   std::set<std::string> jset;
   for (const std::string& joint : joints)
   {
-    const robot_model::JointModel* jm = robot_model_->getJointModel(joint);
+    const moveit::core::JointModel* jm = robot_model_->getJointModel(joint);
     if (jm)
     {
-      if (jm->isPassive() || jm->getMimic() != nullptr || jm->getType() == robot_model::JointModel::FIXED)
+      if (jm->isPassive() || jm->getMimic() != nullptr || jm->getType() == moveit::core::JointModel::FIXED)
         continue;
       jset.insert(joint);
     }

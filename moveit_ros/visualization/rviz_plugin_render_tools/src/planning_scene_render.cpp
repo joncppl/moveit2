@@ -74,6 +74,16 @@ PlanningSceneRender::~PlanningSceneRender()
   context_->getSceneManager()->destroySceneNode(planning_scene_geometry_node_);
 }
 
+void PlanningSceneRender::updateRobotPosition(const planning_scene::PlanningSceneConstPtr& scene)
+{
+  if (scene_robot_)
+  {
+    auto rs = std::make_shared<moveit::core::RobotState>(scene->getCurrentState());
+    rs->update();
+    scene_robot_->updateKinematicState(rs);
+  }
+}
+
 void PlanningSceneRender::clear()
 {
   render_shapes_->clear();
@@ -97,7 +107,7 @@ void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningScen
 
   if (scene_robot_)
   {
-    robot_state::RobotState* rs = new robot_state::RobotState(scene->getCurrentState());
+    moveit::core::RobotState* rs = new moveit::core::RobotState(scene->getCurrentState());
     rs->update();
 
     std_msgs::msg::ColorRGBA color;
@@ -107,7 +117,7 @@ void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningScen
     color.a = 1.0f;
     planning_scene::ObjectColorMap color_map;
     scene->getKnownObjectColors(color_map);
-    scene_robot_->update(robot_state::RobotStateConstPtr(rs), color, color_map);
+    scene_robot_->update(moveit::core::RobotStateConstPtr(rs), color, color_map);
   }
 
   const std::vector<std::string>& ids = scene->getWorld()->getObjectIds();

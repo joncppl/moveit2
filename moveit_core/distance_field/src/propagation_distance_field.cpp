@@ -95,14 +95,6 @@ void PropagationDistanceField::initialize()
   reset();
 }
 
-int PropagationDistanceField::eucDistSq(Eigen::Vector3i point1, Eigen::Vector3i point2)
-{
-  int dx = point1.x() - point2.x();
-  int dy = point1.y() - point2.y();
-  int dz = point1.z() - point2.z();
-  return dx * dx + dy * dy + dz * dz;
-}
-
 void PropagationDistanceField::print(const VoxelSet& set)
 {
   RCLCPP_DEBUG(LOGGER, "[");
@@ -151,7 +143,7 @@ void PropagationDistanceField::updatePointsInField(const EigenSTL::vector_Vector
       new_point_set.insert(voxel_loc);
     }
   }
-  compareEigen_Vector3i comp;
+  CompareEigenVector3i comp;
 
   EigenSTL::vector_Vector3i old_not_new;
   std::set_difference(old_point_set.begin(), old_point_set.end(), new_point_set.begin(), new_point_set.end(),
@@ -423,7 +415,7 @@ void PropagationDistanceField::propagatePositive()
         // the real update code:
         // calculate the neighbor's new distance based on my closest filled voxel:
         PropDistanceFieldVoxel* neighbor = &voxel_grid_->getCell(nloc.x(), nloc.y(), nloc.z());
-        int new_distance_sq = eucDistSq(vptr->closest_point_, nloc);
+        int new_distance_sq = (vptr->closest_point_ - nloc).squaredNorm();
         if (new_distance_sq > max_distance_sq_)
           continue;
 
@@ -480,7 +472,7 @@ void PropagationDistanceField::propagateNegative()
         // the real update code:
         // calculate the neighbor's new distance based on my closest filled voxel:
         PropDistanceFieldVoxel* neighbor = &voxel_grid_->getCell(nloc.x(), nloc.y(), nloc.z());
-        int new_distance_sq = eucDistSq(vptr->closest_negative_point_, nloc);
+        int new_distance_sq = (vptr->closest_negative_point_ - nloc).squaredNorm();
         if (new_distance_sq > max_distance_sq_)
           continue;
         // std::cout << "Looking at " << nloc.x() << " " << nloc.y() << " " << nloc.z() << " " << new_distance_sq << " "

@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.2)
 project(moveit_kinematics)
 
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -33,20 +34,22 @@ set(THIS_PACKAGE_INCLUDE_DIRS
 pluginlib_export_plugin_description_file(moveit_core kdl_kinematics_plugin_description.xml)
 pluginlib_export_plugin_description_file(moveit_core lma_kinematics_plugin_description.xml)
 pluginlib_export_plugin_description_file(moveit_core srv_kinematics_plugin_description.xml)
+pluginlib_export_plugin_description_file(moveit_core cached_ik_kinematics_plugin_description.xml)
 
 include_directories(${THIS_PACKAGE_INCLUDE_DIRS})
 
 add_subdirectory(kdl_kinematics_plugin)
 add_subdirectory(lma_kinematics_plugin)
 add_subdirectory(srv_kinematics_plugin)
-# add_subdirectory(ikfast_kinematics_plugin)
-# add_subdirectory(cached_ik_kinematics_plugin)
+add_subdirectory(ikfast_kinematics_plugin)
+add_subdirectory(cached_ik_kinematics_plugin)
 add_subdirectory(test)
 
 ament_export_libraries(
     moveit_kdl_kinematics_plugin
     moveit_lma_kinematics_plugin
-    moveit_srv_kinematics_plugin)
+    moveit_srv_kinematics_plugin
+    moveit_cached_ik_kinematics_plugin)
 ament_export_include_directories(include)
 ament_export_dependencies(pluginlib)
 ament_export_dependencies(moveit_core)

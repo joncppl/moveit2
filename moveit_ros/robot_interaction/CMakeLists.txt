@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.2)
 project(moveit_ros_robot_interaction)
 
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -27,14 +28,16 @@ catkin_package(
   INCLUDE_DIRS
     include
   CATKIN_DEPENDS
-    moveit_ros_planning
     interactive_markers
+    moveit_ros_planning
+    roscpp
     tf2_geometry_msgs
 )
 
 include_directories(include
-                    ${Boost_INCLUDE_DIRS}
-                    ${catkin_INCLUDE_DIRS})
+  ${Boost_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
 
 add_library(${MOVEIT_LIB_NAME}
   src/interactive_marker_helpers.cpp
@@ -42,11 +45,12 @@ add_library(${MOVEIT_LIB_NAME}
   src/kinematic_options_map.cpp
   src/locked_robot_state.cpp
   src/interaction_handler.cpp
-  src/robot_interaction.cpp)
+  src/robot_interaction.cpp
+)
 set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 target_link_libraries(${MOVEIT_LIB_NAME} ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-if (CATKIN_ENABLE_TESTING)
+if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(locked_robot_state_test test/locked_robot_state_test.cpp)
   target_link_libraries(locked_robot_state_test
     ${MOVEIT_LIB_NAME}
@@ -57,7 +61,8 @@ endif()
 install(TARGETS ${MOVEIT_LIB_NAME}
         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
         ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION})
+        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 install(DIRECTORY include/ DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION})
 
 install(DIRECTORY resources DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

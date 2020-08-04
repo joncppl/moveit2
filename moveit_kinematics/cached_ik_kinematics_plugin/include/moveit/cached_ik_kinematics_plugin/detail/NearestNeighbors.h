@@ -38,8 +38,8 @@
 
 #pragma once
 
-#include <vector>
 #include <functional>
+#include <vector>
 
 namespace cached_ik_kinematics_plugin
 {
@@ -114,4 +114,4 @@ protected:
   /** \brief The used distance function */
   DistanceFunction distFun_;
 };
-}
+}  // namespace cached_ik_kinematics_plugin

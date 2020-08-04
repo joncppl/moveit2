@@ -44,10 +44,10 @@
 #include <algorithm>
 #include <map>
 
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.plugins.moveit_simple_controller_manager");
-
 namespace moveit_simple_controller_manager
 {
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.plugins.moveit_simple_controller_manager");
+static const std::string PARAM_BASE_NAME = "moveit_simple_controller_manager";
 class MoveItSimpleControllerManager : public moveit_controller_manager::MoveItControllerManager
 {
 public:
@@ -57,8 +57,6 @@ public:
 
   void initialize(const rclcpp::Node::SharedPtr& node) override
   {
-    // TODO(henningkayser): use flexible base
-    const std::string PARAM_BASE_NAME = "moveit_simple_controller_manager";
     node_ = node;
     if (!node_->has_parameter(PARAM_BASE_NAME + ".controller_names"))
     {
@@ -94,7 +92,7 @@ public:
         }
 
         std::vector<std::string> controller_joints;
-        if (!node_->get_parameter(PARAM_BASE_NAME + "." + controller_name + ".joints", controller_joints),
+        if (!node_->get_parameter(PARAM_BASE_NAME + "." + controller_name + ".joints", controller_joints) ||
             controller_joints.empty())
         {
           RCLCPP_ERROR_STREAM(LOGGER, "No joints specified for controller " << controller_name);
@@ -156,6 +154,12 @@ public:
           controllers_.erase(controller_name);
           continue;
         }
+
+        moveit_controller_manager::MoveItControllerManager::ControllerState state;
+        node_->get_parameter_or(PARAM_BASE_NAME + "." + controller_name + ".default", state.default_, false);
+        state.active_ = true;
+
+        controller_states_[controller_name] = state;
 
         /* add list of joints, used by controller manager and MoveIt */
         for (const std::string& controller_joint : controller_joints)
@@ -227,16 +231,10 @@ public:
     }
   }
 
-  /*
-   * Controllers are all active and default -- that's what makes this thing simple.
-   */
   moveit_controller_manager::MoveItControllerManager::ControllerState
-  getControllerState(const std::string& /* name */) override
+  getControllerState(const std::string& name) override
   {
-    moveit_controller_manager::MoveItControllerManager::ControllerState state;
-    state.active_ = true;
-    state.default_ = true;
-    return state;
+    return controller_states_[name];
   }
 
   /* Cannot switch our controllers */
@@ -249,6 +247,7 @@ public:
 protected:
   rclcpp::Node::SharedPtr node_;
   std::map<std::string, ActionBasedControllerHandleBasePtr> controllers_;
+  std::map<std::string, moveit_controller_manager::MoveItControllerManager::ControllerState> controller_states_;
 };
 
 }  // end namespace moveit_simple_controller_manager

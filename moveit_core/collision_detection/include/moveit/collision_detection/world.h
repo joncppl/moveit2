@@ -150,12 +150,14 @@ public:
 
   /** \brief Get the transform to an object or subframe with given name.
    * If name does not exist, a std::runtime_error is thrown.
-   * A subframe name needs to be prefixed with the object's name separated by a slash. */
+   * A subframe name needs to be prefixed with the object's name separated by a slash.
+   * The returned transform is guaranteed to be a valid isometry. */
   const Eigen::Isometry3d& getTransform(const std::string& name) const;
 
   /** \brief Get the transform to an object or subframe with given name.
    * If name does not exist, returns an identity transform and sets frame_found to false.
-   * A subframe name needs to be prefixed with the object's name separated by a slash. */
+   * A subframe name needs to be prefixed with the object's name separated by a slash.
+   * The returned transform is guaranteed to be a valid isometry. */
   const Eigen::Isometry3d& getTransform(const std::string& name, bool& frame_found) const;
 
   /** \brief Add shapes to an object in the map.
@@ -240,7 +242,7 @@ public:
   class ObserverHandle
   {
   public:
-    ObserverHandle() : observer_(NULL)
+    ObserverHandle() : observer_(nullptr)
     {
     }
 
@@ -269,7 +271,7 @@ public:
 
 private:
   /** notify all observers of a change */
-  void notify(const ObjectConstPtr&, Action);
+  void notify(const ObjectConstPtr& /*obj*/, Action /*action*/);
 
   /** send notification of change to all objects. */
   void notifyAll(Action action);
@@ -299,4 +301,4 @@ private:
   /// All registered observers of this world representation
   std::vector<Observer*> observers_;
 };
-}
+}  // namespace collision_detection

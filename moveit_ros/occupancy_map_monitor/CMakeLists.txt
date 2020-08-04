@@ -3,7 +3,7 @@ project(moveit_ros_occupancy_map_monitor)
 set(MOVEIT_LIB_NAME ${PROJECT_NAME})
 
 set(CMAKE_CXX_STANDARD 14)
-
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Disable -Wpedantic warnings due to the warnings in ros-dashing-octomap
@@ -20,7 +20,7 @@ find_package(Boost REQUIRED thread)
 
 if(APPLE)
   find_package(X11 REQUIRED)
-endif(APPLE)
+endif()
 
 find_package(moveit_core REQUIRED)
 find_package(moveit_msgs REQUIRED)
@@ -28,17 +28,18 @@ find_package(pluginlib REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(octomap REQUIRED)
 find_package(geometric_shapes REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 include_directories(include)
 include_directories(SYSTEM
-                    ${EIGEN3_INCLUDE_DIRS}
-                    ${X11_INCLUDE_DIR}
-                    )
+  ${EIGEN3_INCLUDE_DIRS}
+  ${X11_INCLUDE_DIR}
+)
 
 add_library(${MOVEIT_LIB_NAME} SHARED
   src/occupancy_map_monitor.cpp
   src/occupancy_map_updater.cpp
-  )
+)
 set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 ament_target_dependencies(${MOVEIT_LIB_NAME}
   rclcpp
@@ -63,7 +64,6 @@ ament_target_dependencies(moveit_ros_occupancy_map_server
 target_link_libraries(moveit_ros_occupancy_map_server ${MOVEIT_LIB_NAME})
 
 ament_export_include_directories(include)
-ament_export_interfaces(${MOVEIT_LIB_NAME} HAS_LIBRARY_TARGET)
 ament_export_libraries(${MOVEIT_LIB_NAME})
 ament_export_dependencies(rclcpp)
 ament_export_dependencies(eigen3_cmake_module)
