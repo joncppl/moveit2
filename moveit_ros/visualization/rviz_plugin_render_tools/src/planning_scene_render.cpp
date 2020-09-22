@@ -149,7 +149,14 @@ void PlanningSceneRender::renderPlanningScene(const planning_scene::PlanningScen
     }
     average_position /= object->shapes_.size();
     auto position = Ogre::Vector3(average_position.x(), average_position.y(), average_position.z());
-    auto text_object = new TextThatActuallyGoesWhereYouTellItToo(context_->getSceneManager(), id, position);
+    std::string text;
+    const auto r = id.rfind('>');
+    if (r != std::string::npos) {
+      text = id.substr(r + 1);
+    } else {
+      text = id;
+    }
+    auto text_object = new TextThatActuallyGoesWhereYouTellItToo(context_->getSceneManager(), text, position);
     planning_scene_geometry_node_->addChild(text_object);
     render_texts_.emplace_back(text_object);
   }
