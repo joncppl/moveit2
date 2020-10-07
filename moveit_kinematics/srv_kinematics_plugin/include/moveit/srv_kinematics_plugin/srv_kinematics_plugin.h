@@ -48,9 +48,7 @@
 #include <memory>
 
 // ROS msgs
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <moveit_msgs/srv/get_position_fk.hpp>
-#include <moveit_msgs/srv/get_position_ik.hpp>
+#include <geometry_msgs/msg/pose.hpp>
 #include <moveit_msgs/msg/kinematic_solver_info.hpp>
 #include <moveit_msgs/msg/move_it_error_codes.hpp>
 
@@ -72,10 +70,10 @@ public:
    */
   SrvKinematicsPlugin();
 
-  bool getPositionIK(
-      const geometry_msgs::msg::Pose& ik_pose, const std::vector<double>& ik_seed_state, std::vector<double>& solution,
-      moveit_msgs::msg::MoveItErrorCodes& error_code,
-      const kinematics::KinematicsQueryOptions& options = kinematics::KinematicsQueryOptions()) const override;
+  bool
+  getPositionIK(const geometry_msgs::msg::Pose& ik_pose, const std::vector<double>& ik_seed_state,
+                std::vector<double>& solution, moveit_msgs::msg::MoveItErrorCodes& error_code,
+                const kinematics::KinematicsQueryOptions& options = kinematics::KinematicsQueryOptions()) const override;
 
   bool searchPositionIK(
       const geometry_msgs::msg::Pose& ik_pose, const std::vector<double>& ik_seed_state, double timeout,

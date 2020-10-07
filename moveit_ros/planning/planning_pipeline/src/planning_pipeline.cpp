@@ -55,13 +55,22 @@ planning_pipeline::PlanningPipeline::PlanningPipeline(const moveit::core::RobotM
                                                       const std::string& adapter_plugins_param_name)
   : node_(node), parameter_namespace_(parameter_namespace), robot_model_(model)
 {
-  if (node_->has_parameter(parameter_namespace_ + "." + planner_plugin_param_name))
-    node_->get_parameter(parameter_namespace_ + "." + planner_plugin_param_name, planner_plugin_name_);
+  std::string planner_plugin_fullname = parameter_namespace_ + "." + planner_plugin_param_name;
+  if (parameter_namespace_.empty())
+    planner_plugin_fullname = planner_plugin_param_name;
+  if (node_->has_parameter(planner_plugin_fullname))
+  {
+    node_->get_parameter(planner_plugin_fullname, planner_plugin_name_);
+  }
+
+  std::string adapter_plugins_fullname = parameter_namespace_ + "." + adapter_plugins_param_name;
+  if (parameter_namespace_.empty())
+    adapter_plugins_fullname = adapter_plugins_param_name;
 
   std::string adapters;
-  if (node_->has_parameter(parameter_namespace_ + "." + adapter_plugins_param_name))
+  if (node_->has_parameter(adapter_plugins_fullname))
   {
-    node_->get_parameter(parameter_namespace_ + "." + adapter_plugins_param_name, adapters);
+    node_->get_parameter(adapter_plugins_fullname, adapters);
     boost::char_separator<char> sep(" ");
     boost::tokenizer<boost::char_separator<char> > tok(adapters, sep);
     for (boost::tokenizer<boost::char_separator<char> >::iterator beg = tok.begin(); beg != tok.end(); ++beg)
@@ -132,8 +141,9 @@ void planning_pipeline::PlanningPipeline::configure()
   catch (pluginlib::PluginlibException& ex)
   {
     std::string classes_str = boost::algorithm::join(classes, ", ");
-    RCLCPP_ERROR(LOGGER, "Exception while loading planner '%s': %s"
-                         "Available plugins: %s",
+    RCLCPP_ERROR(LOGGER,
+                 "Exception while loading planner '%s': %s"
+                 "Available plugins: %s",
                  planner_plugin_name_.c_str(), ex.what(), classes_str.c_str());
   }
 
@@ -309,8 +319,9 @@ bool planning_pipeline::PlanningPipeline::generatePlan(const planning_scene::Pla
             std::stringstream ss;
             for (std::size_t it : index)
               ss << it << " ";
-            RCLCPP_ERROR(LOGGER, "Computed path is not valid. Invalid states at index locations: [%s] out of "
-                                 "%ld. Explanations follow in command line. Contacts are published on %s",
+            RCLCPP_ERROR(LOGGER,
+                         "Computed path is not valid. Invalid states at index locations: [%s] out of "
+                         "%ld. Explanations follow in command line. Contacts are published on %s",
                          ss.str().c_str(), state_count, contacts_publisher_->get_topic_name());
 
             // call validity checks in verbose mode for the problematic states
@@ -380,11 +391,10 @@ bool planning_pipeline::PlanningPipeline::generatePlan(const planning_scene::Pla
         stacked_constraints = true;
     }
     if (stacked_constraints)
-      RCLCPP_WARN(
-          LOGGER,
-          "More than one constraint is set. If your move_group does not have multiple end effectors/arms, this is "
-          "unusual. Are you using a move_group_interface and forgetting to call clearPoseTargets() or "
-          "equivalent?");
+      RCLCPP_WARN(LOGGER, "More than one constraint is set. If your move_group does not have multiple end "
+                          "effectors/arms, this is "
+                          "unusual. Are you using a move_group_interface and forgetting to call clearPoseTargets() or "
+                          "equivalent?");
   }
 
   return solved && valid;

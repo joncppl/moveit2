@@ -50,6 +50,7 @@
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/thread/recursive_mutex.hpp>
 #include <memory>
+#include <thread>
 
 namespace planning_scene_monitor
 {
@@ -412,16 +413,16 @@ protected:
   void configureDefaultPadding();
 
   /** @brief Callback for a new collision object msg*/
-  void collisionObjectCallback(const moveit_msgs::msg::CollisionObject::ConstSharedPtr obj);
+  void collisionObjectCallback(moveit_msgs::msg::CollisionObject::SharedPtr obj);
 
   /** @brief Callback for a new planning scene world*/
-  void newPlanningSceneWorldCallback(const moveit_msgs::msg::PlanningSceneWorld::ConstSharedPtr world);
+  void newPlanningSceneWorldCallback(moveit_msgs::msg::PlanningSceneWorld::SharedPtr world);
 
   /** @brief Callback for octomap updates */
   void octomapUpdateCallback();
 
   /** @brief Callback for a new attached object msg*/
-  void attachObjectCallback(const moveit_msgs::msg::AttachedCollisionObject::ConstSharedPtr obj);
+  void attachObjectCallback(moveit_msgs::msg::AttachedCollisionObject::SharedPtr obj);
 
   /** @brief Callback for a change for an attached object of the current state of the planning scene */
   void currentStateAttachedBodyUpdateCallback(moveit::core::AttachedBody* attached_body, bool just_attached);
@@ -461,7 +462,9 @@ protected:
   // TODO: (anasarrak) callbacks on ROS2?
   // https://answers.ros.org/question/300874/how-do-you-use-callbackgroups-as-a-replacement-for-callbackqueues-in-ros2/
   // ros::CallbackQueue queue_;
-  std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> spinner_;
+  std::shared_ptr<rclcpp::Node> pnode_;
+  std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> private_executor_;
+  std::thread private_executor_thread_;
 
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
@@ -485,7 +488,7 @@ protected:
   std::unique_ptr<boost::thread> publish_planning_scene_;
   double publish_planning_scene_frequency_;
   SceneUpdateType publish_update_types_;
-  SceneUpdateType new_scene_update_;
+  std::atomic<SceneUpdateType> new_scene_update_;
   boost::condition_variable_any new_scene_update_condition_;
 
   // subscribe to various sources of data
@@ -543,6 +546,9 @@ private:
   void getPlanningSceneServiceCallback(moveit_msgs::srv::GetPlanningScene::Request::SharedPtr req,
                                        moveit_msgs::srv::GetPlanningScene::Response::SharedPtr res);
 
+  void updatePublishSettings(bool publish_geom_updates, bool publish_state_updates, bool publish_transform_updates,
+                             bool publish_planning_scene, double publish_planning_scene_hz);
+
   // Lock for state_update_pending_ and dt_state_update_
   std::mutex state_pending_mutex_;
 
@@ -574,8 +580,7 @@ private:
 
   collision_detection::CollisionPluginLoader collision_loader_;
 
-  // class DynamicReconfigureImpl;
-  // DynamicReconfigureImpl* reconfigure_impl_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr callback_handler_;
 };
 
 /** \brief This is a convenience class for obtaining access to an
@@ -618,7 +623,7 @@ public:
     return planning_scene_monitor_ && planning_scene_monitor_->getPlanningScene();
   }
 
-  operator const planning_scene::PlanningSceneConstPtr&() const
+  operator const planning_scene::PlanningSceneConstPtr &() const
   {
     return static_cast<const PlanningSceneMonitor*>(planning_scene_monitor_.get())->getPlanningScene();
   }
@@ -699,7 +704,7 @@ public:
   {
   }
 
-  operator const planning_scene::PlanningScenePtr&()
+  operator const planning_scene::PlanningScenePtr &()
   {
     return planning_scene_monitor_->getPlanningScene();
   }

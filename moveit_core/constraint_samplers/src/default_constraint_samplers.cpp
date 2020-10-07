@@ -35,7 +35,6 @@
 /* Author: Ioan Sucan */
 
 #include <moveit/constraint_samplers/default_constraint_samplers.h>
-#include <set>
 #include <cassert>
 #include <boost/bind.hpp>
 
@@ -101,8 +100,9 @@ bool JointConstraintSampler::configure(const std::vector<kinematic_constraints::
     {
       std::stringstream cs;
       joint_constraint.print(cs);
-      RCLCPP_ERROR(LOGGER, "The constraints for joint '%s' are such that "
-                           "there are no possible values for the joint: min_bound: %g, max_bound: %g. Failing.\n",
+      RCLCPP_ERROR(LOGGER,
+                   "The constraints for joint '%s' are such that "
+                   "there are no possible values for the joint: min_bound: %g, max_bound: %g. Failing.\n",
                    jm->getName().c_str(), ji.min_bound_, ji.max_bound_);
       clear();
       return false;
@@ -354,8 +354,9 @@ bool IKConstraintSampler::loadIKSolver()
   if (transform_ik_)
     if (!jmg_->getParentModel().hasLinkModel(ik_frame_))
     {
-      RCLCPP_ERROR(LOGGER, "The IK solver expects requests in frame '%s' but this frame is not known to the sampler. "
-                           "Ignoring transformation (IK may fail)",
+      RCLCPP_ERROR(LOGGER,
+                   "The IK solver expects requests in frame '%s' but this frame is not known to the sampler. "
+                   "Ignoring transformation (IK may fail)",
                    ik_frame_.c_str());
       transform_ik_ = false;
     }

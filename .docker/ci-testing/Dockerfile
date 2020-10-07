@@ -1,7 +1,7 @@
-# moveit/moveit2:eloquent-ci-testing
+# moveit/moveit2:foxy-ci-testing
 # CI image using the ROS testing repository
 
-ARG ROS_DISTRO=eloquent
+ARG ROS_DISTRO=foxy
 FROM moveit/moveit2:${ROS_DISTRO}-ci
 
 MAINTAINER Dave Coleman dave@picknik.ai
@@ -21,7 +21,7 @@ RUN apt-get -qq update && \
 # TODO: remove all this when the migration is finished and all dependencies are install from ci base image
 RUN mkdir src && \
     cd $ROS_WS/src && \
-    wget -q https://raw.githubusercontent.com/ros-planning/moveit2/master/moveit2.repos && \
+    wget -q https://raw.githubusercontent.com/ros-planning/moveit2/main/moveit2.repos && \
     vcs import < moveit2.repos && \
     # Remove folders declared as COLCON_IGNORE
     find -L . -name COLCON_IGNORE -printf "%h\0" | xargs -0 rm -rf && \

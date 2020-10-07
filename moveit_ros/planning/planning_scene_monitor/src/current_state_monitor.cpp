@@ -148,7 +148,7 @@ void planning_scene_monitor::CurrentStateMonitor::startStateMonitor(const std::s
       //     tf_buffer_->_addTransformsChangedListener(std::bind(&CurrentStateMonitor::tfCallback, this))));
     }
     state_monitor_started_ = true;
-    monitor_start_time_ = rclcpp::Clock().now();
+    monitor_start_time_ = node_->now();
     RCLCPP_INFO(LOGGER, "Listening to joint states on topic '%s'", joint_states_topic.c_str());
   }
 }
@@ -274,7 +274,7 @@ bool planning_scene_monitor::CurrentStateMonitor::haveCompleteState(const rclcpp
 
 bool planning_scene_monitor::CurrentStateMonitor::waitForCurrentState(const rclcpp::Time& t, double wait_time) const
 {
-  rclcpp::Time start = rclcpp::Clock().now();
+  rclcpp::Time start = node_->now();
   rclcpp::Duration elapsed(0, 0);
   rclcpp::Duration timeout(wait_time, 0);
 
@@ -282,12 +282,13 @@ bool planning_scene_monitor::CurrentStateMonitor::waitForCurrentState(const rclc
   while (current_state_time_ < t)
   {
     state_update_condition_.wait_for(lock, (timeout - elapsed).to_chrono<std::chrono::seconds>());
-    elapsed = rclcpp::Clock().now() - start;
+    elapsed = node_->now() - start;
     if (elapsed > timeout)
     {
-      RCLCPP_INFO(LOGGER, "Didn't received robot state (joint angles) with recent timestamp within "
-                          "%f seconds.\n"
-                          "Check clock synchronization if your are running ROS across multiple machines!",
+      RCLCPP_INFO(LOGGER,
+                  "Didn't received robot state (joint angles) with recent timestamp within "
+                  "%f seconds.\n"
+                  "Check clock synchronization if your are running ROS across multiple machines!",
                   wait_time);
       return false;
     }
@@ -440,9 +441,10 @@ void planning_scene_monitor::CurrentStateMonitor::tfCallback()
       }
       catch (tf2::TransformException& ex)
       {
-        RCLCPP_WARN_ONCE(LOGGER, "Unable to update multi-DOF joint '%s':"
-                                 "Failure to lookup transform between '%s'"
-                                 "and '%s' with TF exception: %s",
+        RCLCPP_WARN_ONCE(LOGGER,
+                         "Unable to update multi-DOF joint '%s':"
+                         "Failure to lookup transform between '%s'"
+                         "and '%s' with TF exception: %s",
                          joint->getName().c_str(), parent_frame.c_str(), child_frame.c_str(), ex.what());
         continue;
       }

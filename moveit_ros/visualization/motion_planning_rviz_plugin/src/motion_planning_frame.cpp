@@ -42,31 +42,47 @@
 
 #include <geometric_shapes/shape_operations.h>
 
-#include <rviz/display_context.h>
-#include <rviz/frame_manager.h>
+#include <rviz_common/display_context.hpp>
+#include <rviz_common/frame_manager_iface.hpp>
 #include <tf2_ros/buffer.h>
 
-#include <std_srvs/Empty.h>
+#include <std_srvs/srv/empty.hpp>
 
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QFileDialog>
+#include <QComboBox>
 #include <QShortcut>
 
 #include "ui_motion_planning_rviz_plugin_frame.h"
 
 namespace moveit_rviz_plugin
 {
-MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay* pdisplay, rviz::DisplayContext* context,
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_ros_visualization.motion_planning_frame");
+
+MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay* pdisplay, rviz_common::DisplayContext* context,
                                          QWidget* parent)
-  : QWidget(parent)
-  , planning_display_(pdisplay)
-  , context_(context)
-  , ui_(new Ui::MotionPlanningUI())
-  , first_time_(true)
-  , clear_octomap_service_client_(nh_.serviceClient<std_srvs::Empty>(move_group::CLEAR_OCTOMAP_SERVICE_NAME))
+  : QWidget(parent), planning_display_(pdisplay), context_(context), ui_(new Ui::MotionPlanningUI()), first_time_(true)
 {
+  auto ros_node_abstraction = context_->getRosNodeAbstraction().lock();
+  if (!ros_node_abstraction)
+  {
+    RCLCPP_INFO(LOGGER, "Unable to lock weak_ptr from DisplayContext in MotionPlanningFrame constructor");
+    return;
+  }
+  node_ = ros_node_abstraction->get_raw_node();
+  clear_octomap_service_client_ = node_->create_client<std_srvs::srv::Empty>(move_group::CLEAR_OCTOMAP_SERVICE_NAME);
+
   // set up the GUI
   ui_->setupUi(this);
+  ui_->shapes_combo_box->addItem("Box", shapes::BOX);
+  ui_->shapes_combo_box->addItem("Sphere", shapes::SPHERE);
+  ui_->shapes_combo_box->addItem("Cylinder", shapes::CYLINDER);
+  ui_->shapes_combo_box->addItem("Cone", shapes::CONE);
+  ui_->shapes_combo_box->addItem("Mesh from file", shapes::MESH);
+  ui_->shapes_combo_box->addItem("Mesh from URL", shapes::MESH);
+  setLocalSceneEdited(false);
+
   // add more tabs
   joints_tab_ = new MotionPlanningFrameJointsWidget(planning_display_, ui_->tabWidget);
   ui_->tabWidget->addTab(joints_tab_, "Joints");
@@ -75,9 +91,9 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay* pdisplay, rviz::
 
   // Set initial velocity and acceleration scaling factors from ROS parameters
   double factor;
-  nh_.param<double>("robot_description_planning/default_velocity_scaling_factor", factor, 0.1);
+  node_->get_parameter_or("robot_description_planning.default_velocity_scaling_factor", factor, 0.1);
   ui_->velocity_scaling_factor->setValue(factor);
-  nh_.param<double>("robot_description_planning/default_acceleration_scaling_factor", factor, 0.1);
+  node_->get_parameter_or("robot_description_planning.default_acceleration_scaling_factor", factor, 0.1);
   ui_->acceleration_scaling_factor->setValue(factor);
 
   // connect bottons to actions; each action usually registers the function pointer for the actual computation,
@@ -105,20 +121,18 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay* pdisplay, rviz::
           SLOT(planningAlgorithmIndexChanged(int)));
   connect(ui_->planning_algorithm_combo_box, SIGNAL(currentIndexChanged(int)), this,
           SLOT(planningAlgorithmIndexChanged(int)));
-  connect(ui_->import_file_button, SIGNAL(clicked()), this, SLOT(importFileButtonClicked()));
-  connect(ui_->import_url_button, SIGNAL(clicked()), this, SLOT(importUrlButtonClicked()));
-  connect(ui_->clear_scene_button, SIGNAL(clicked()), this, SLOT(clearSceneButtonClicked()));
+  connect(ui_->clear_scene_button, SIGNAL(clicked()), this, SLOT(clearScene()));
   connect(ui_->scene_scale, SIGNAL(valueChanged(int)), this, SLOT(sceneScaleChanged(int)));
   connect(ui_->scene_scale, SIGNAL(sliderPressed()), this, SLOT(sceneScaleStartChange()));
   connect(ui_->scene_scale, SIGNAL(sliderReleased()), this, SLOT(sceneScaleEndChange()));
-  connect(ui_->remove_object_button, SIGNAL(clicked()), this, SLOT(removeObjectButtonClicked()));
+  connect(ui_->remove_object_button, SIGNAL(clicked()), this, SLOT(removeSceneObject()));
   connect(ui_->object_x, SIGNAL(valueChanged(double)), this, SLOT(objectPoseValueChanged(double)));
   connect(ui_->object_y, SIGNAL(valueChanged(double)), this, SLOT(objectPoseValueChanged(double)));
   connect(ui_->object_z, SIGNAL(valueChanged(double)), this, SLOT(objectPoseValueChanged(double)));
   connect(ui_->object_rx, SIGNAL(valueChanged(double)), this, SLOT(objectPoseValueChanged(double)));
   connect(ui_->object_ry, SIGNAL(valueChanged(double)), this, SLOT(objectPoseValueChanged(double)));
   connect(ui_->object_rz, SIGNAL(valueChanged(double)), this, SLOT(objectPoseValueChanged(double)));
-  connect(ui_->publish_current_scene_button, SIGNAL(clicked()), this, SLOT(publishSceneButtonClicked()));
+  connect(ui_->publish_current_scene_button, SIGNAL(clicked()), this, SLOT(publishScene()));
   connect(ui_->collision_objects_list, SIGNAL(itemSelectionChanged()), this, SLOT(selectedCollisionObjectChanged()));
   connect(ui_->collision_objects_list, SIGNAL(itemChanged(QListWidgetItem*)), this,
           SLOT(collisionObjectChanged(QListWidgetItem*)));
@@ -128,8 +142,11 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay* pdisplay, rviz::
   connect(ui_->planning_scene_tree, SIGNAL(itemChanged(QTreeWidgetItem*, int)), this,
           SLOT(warehouseItemNameChanged(QTreeWidgetItem*, int)));
   connect(ui_->reset_db_button, SIGNAL(clicked()), this, SLOT(resetDbButtonClicked()));
-  connect(ui_->export_scene_text_button, SIGNAL(clicked()), this, SLOT(exportAsTextButtonClicked()));
-  connect(ui_->import_scene_text_button, SIGNAL(clicked()), this, SLOT(importFromTextButtonClicked()));
+
+  connect(ui_->add_object_button, &QPushButton::clicked, this, &MotionPlanningFrame::addSceneObject);
+  connect(ui_->shapes_combo_box, &QComboBox::currentTextChanged, this, &MotionPlanningFrame::shapesComboBoxChanged);
+  connect(ui_->export_scene_geometry_text_button, SIGNAL(clicked()), this, SLOT(exportGeometryAsTextButtonClicked()));
+  connect(ui_->import_scene_geometry_text_button, SIGNAL(clicked()), this, SLOT(importGeometryFromTextButtonClicked()));
   connect(ui_->load_state_button, SIGNAL(clicked()), this, SLOT(loadStateButtonClicked()));
   connect(ui_->save_start_state_button, SIGNAL(clicked()), this, SLOT(saveStartStateButtonClicked()));
   connect(ui_->save_goal_state_button, SIGNAL(clicked()), this, SLOT(saveGoalStateButtonClicked()));
@@ -181,50 +198,48 @@ MotionPlanningFrame::MotionPlanningFrame(MotionPlanningDisplay* pdisplay, rviz::
   ui_->background_job_progress->hide();
   ui_->background_job_progress->setMaximum(0);
 
-  ui_->tabWidget->setCurrentIndex(0);
+  ui_->tabWidget->setCurrentIndex(1);
 
   known_collision_objects_version_ = 0;
 
-  planning_scene_publisher_ = nh_.advertise<moveit_msgs::msg::PlanningScene>("planning_scene", 1);
-  planning_scene_world_publisher_ = nh_.advertise<moveit_msgs::msg::PlanningSceneWorld>("planning_scene_world", 1);
+  planning_scene_publisher_ = node_->create_publisher<moveit_msgs::msg::PlanningScene>("planning_scene", 1);
+  planning_scene_world_publisher_ =
+      node_->create_publisher<moveit_msgs::msg::PlanningSceneWorld>("planning_scene_world", 1);
 
-  // object_recognition_trigger_publisher_ = nh_.advertise<std_msgs::Bool>("recognize_objects_switch", 1);
-  object_recognition_client_.reset(new actionlib::SimpleActionClient<object_recognition_msgs::ObjectRecognitionAction>(
-      OBJECT_RECOGNITION_ACTION, false));
-  object_recognition_subscriber_ =
-      nh_.subscribe("recognized_object_array", 1, &MotionPlanningFrame::listenDetectedObjects, this);
+  object_recognition_client_ = rclcpp_action::create_client<object_recognition_msgs::action::ObjectRecognition>(
+      node_, OBJECT_RECOGNITION_ACTION);
+
+  object_recognition_subscriber_ = node_->create_subscription<object_recognition_msgs::msg::RecognizedObjectArray>(
+      "recognized_object_array", 1, std::bind(&MotionPlanningFrame::listenDetectedObjects, this, std::placeholders::_1));
 
   if (object_recognition_client_)
   {
-    try
+    if (!object_recognition_client_->wait_for_action_server(std::chrono::seconds(3)))
     {
-      waitForAction(object_recognition_client_, nh_, ros::Duration(3.0), OBJECT_RECOGNITION_ACTION);
-    }
-    catch (std::exception& ex)
-    {
-      // ROS_ERROR("Object recognition action: %s", ex.what());
+      RCLCPP_ERROR(LOGGER, "Action server: %s not available", OBJECT_RECOGNITION_ACTION.c_str());
       object_recognition_client_.reset();
     }
   }
+  // TODO (ddengster): Enable when moveit_ros_perception is ported
 
-  try
-  {
-    const planning_scene_monitor::LockedPlanningSceneRO& ps = planning_display_->getPlanningSceneRO();
-    if (ps)
-    {
-      semantic_world_.reset(new moveit::semantic_world::SemanticWorld(ps));
-    }
-    else
-      semantic_world_.reset();
-    if (semantic_world_)
-    {
-      semantic_world_->addTableCallback(boost::bind(&MotionPlanningFrame::updateTables, this));
-    }
-  }
-  catch (std::exception& ex)
-  {
-    ROS_ERROR("%s", ex.what());
-  }
+  // try
+  // {
+  // const planning_scene_monitor::LockedPlanningSceneRO& ps = planning_display_->getPlanningSceneRO();
+  //    if (ps)
+  //    {
+  //      semantic_world_.reset(new moveit::semantic_world::SemanticWorld(ps));
+  //    }
+  //    else
+  //      semantic_world_.reset();
+  //    if (semantic_world_)
+  //    {
+  //      semantic_world_->addTableCallback(boost::bind(&MotionPlanningFrame::updateTables, this));
+  //    }
+  //  }
+  //  catch (std::exception& ex)
+  //  {
+  //    RCLCPP_ERROR(LOGGER, "Failed to get semantic world: %s", ex.what());
+  //  }
 }
 
 MotionPlanningFrame::~MotionPlanningFrame()
@@ -255,28 +270,33 @@ void MotionPlanningFrame::allowExternalProgramCommunication(bool enable)
   planning_display_->toggleSelectPlanningGroupSubscription(enable);
   if (enable)
   {
-    ros::NodeHandle nh;
-    plan_subscriber_ = nh.subscribe("/rviz/moveit/plan", 1, &MotionPlanningFrame::remotePlanCallback, this);
-    execute_subscriber_ = nh.subscribe("/rviz/moveit/execute", 1, &MotionPlanningFrame::remoteExecuteCallback, this);
-    stop_subscriber_ = nh.subscribe("/rviz/moveit/stop", 1, &MotionPlanningFrame::remoteStopCallback, this);
-    update_start_state_subscriber_ =
-        nh.subscribe("/rviz/moveit/update_start_state", 1, &MotionPlanningFrame::remoteUpdateStartStateCallback, this);
-    update_goal_state_subscriber_ =
-        nh.subscribe("/rviz/moveit/update_goal_state", 1, &MotionPlanningFrame::remoteUpdateGoalStateCallback, this);
-    update_custom_start_state_subscriber_ = nh.subscribe(
-        "/rviz/moveit/update_custom_start_state", 1, &MotionPlanningFrame::remoteUpdateCustomStartStateCallback, this);
-    update_custom_goal_state_subscriber_ = nh.subscribe(
-        "/rviz/moveit/update_custom_goal_state", 1, &MotionPlanningFrame::remoteUpdateCustomGoalStateCallback, this);
+    using std::placeholders::_1;
+    plan_subscriber_ = node_->create_subscription<std_msgs::msg::Empty>(
+        "/rviz/moveit/plan", 1, std::bind(&MotionPlanningFrame::remotePlanCallback, this, _1));
+    execute_subscriber_ = node_->create_subscription<std_msgs::msg::Empty>(
+        "/rviz/moveit/execute", 1, std::bind(&MotionPlanningFrame::remoteExecuteCallback, this, _1));
+    stop_subscriber_ = node_->create_subscription<std_msgs::msg::Empty>(
+        "/rviz/moveit/stop", 1, std::bind(&MotionPlanningFrame::remoteStopCallback, this, _1));
+    update_start_state_subscriber_ = node_->create_subscription<std_msgs::msg::Empty>(
+        "/rviz/moveit/update_start_state", 1, std::bind(&MotionPlanningFrame::remoteUpdateStartStateCallback, this, _1));
+    update_goal_state_subscriber_ = node_->create_subscription<std_msgs::msg::Empty>(
+        "/rviz/moveit/update_goal_state", 1, std::bind(&MotionPlanningFrame::remoteUpdateGoalStateCallback, this, _1));
+    update_custom_start_state_subscriber_ = node_->create_subscription<moveit_msgs::msg::RobotState>(
+        "/rviz/moveit/update_custom_start_state", 1,
+        std::bind(&MotionPlanningFrame::remoteUpdateCustomStartStateCallback, this, _1));
+    update_custom_goal_state_subscriber_ = node_->create_subscription<moveit_msgs::msg::RobotState>(
+        "/rviz/moveit/update_custom_goal_state", 1,
+        std::bind(&MotionPlanningFrame::remoteUpdateCustomGoalStateCallback, this, _1));
   }
   else
   {  // disable
-    plan_subscriber_.shutdown();
-    execute_subscriber_.shutdown();
-    stop_subscriber_.shutdown();
-    update_start_state_subscriber_.shutdown();
-    update_goal_state_subscriber_.shutdown();
-    update_custom_start_state_subscriber_.shutdown();
-    update_custom_goal_state_subscriber_.shutdown();
+    plan_subscriber_.reset();
+    execute_subscriber_.reset();
+    stop_subscriber_.reset();
+    update_start_state_subscriber_.reset();
+    update_goal_state_subscriber_.reset();
+    update_custom_start_state_subscriber_.reset();
+    update_custom_goal_state_subscriber_.reset();
   }
 }
 
@@ -354,29 +374,32 @@ void MotionPlanningFrame::changePlanningGroupHelper()
 
   if (!group.empty() && robot_model)
   {
+    RCLCPP_INFO(LOGGER, "group %s", group.c_str());
     if (move_group_ && move_group_->getName() == group)
       return;
-    ROS_INFO("Constructing new MoveGroup connection for group '%s' in namespace '%s'", group.c_str(),
-             planning_display_->getMoveGroupNS().c_str());
+    RCLCPP_INFO(LOGGER, "Constructing new MoveGroup connection for group '%s' in namespace '%s'", group.c_str(),
+                planning_display_->getMoveGroupNS().c_str());
     moveit::planning_interface::MoveGroupInterface::Options opt(group);
     opt.robot_model_ = robot_model;
     opt.robot_description_.clear();
-    opt.node_handle_ = ros::NodeHandle(planning_display_->getMoveGroupNS());
     try
     {
 #ifdef RVIZ_TF1
       std::shared_ptr<tf2_ros::Buffer> tf_buffer = moveit::planning_interface::getSharedTF();
 #else
-      std::shared_ptr<tf2_ros::Buffer> tf_buffer = context_->getFrameManager()->getTF2BufferPtr();
+      //@note: tf2 no longer accessible?
+      // /std::shared_ptr<tf2_ros::Buffer> tf_buffer = context_->getFrameManager()->getTF2BufferPtr();
+      std::shared_ptr<tf2_ros::Buffer> tf_buffer = moveit::planning_interface::getSharedTF();
 #endif
-      move_group_.reset(new moveit::planning_interface::MoveGroupInterface(opt, tf_buffer, ros::WallDuration(30, 0)));
-
-      if (planning_scene_storage_)
-        move_group_->setConstraintsDatabase(ui_->database_host->text().toStdString(), ui_->database_port->value());
+      move_group_.reset(new moveit::planning_interface::MoveGroupInterface(node_, opt, tf_buffer, rclcpp::Duration(30)));
+      // TODO (ddengster): Enable when moveit_ros_warehouse is ported
+      //      if (planning_scene_storage_)
+      //        move_group_->setConstraintsDatabase(ui_->database_host->text().toStdString(),
+      //        ui_->database_port->value());
     }
     catch (std::exception& ex)
     {
-      ROS_ERROR("%s", ex.what());
+      RCLCPP_ERROR(LOGGER, "%s", ex.what());
     }
     planning_display_->addMainLoopJob(
         boost::bind(&MotionPlanningParamWidget::setMoveGroup, ui_->planner_param_treeview, move_group_));
@@ -426,98 +449,132 @@ void MotionPlanningFrame::sceneUpdate(planning_scene_monitor::PlanningSceneMonit
     planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::populateCollisionObjectsList, this));
 }
 
-void MotionPlanningFrame::importResource(const std::string& path)
+void MotionPlanningFrame::addSceneObject()
 {
-  if (planning_display_->getPlanningSceneMonitor())
+  static const double MIN_VAL = 1e-6;
+
+  if (!planning_display_->getPlanningSceneMonitor())
   {
-    shapes::Mesh* mesh = shapes::createMeshFromResource(path);
-    if (mesh)
+    return;
+  }
+
+  // get size values
+  double x_length = ui_->shape_size_x_spin_box->isEnabled() ? ui_->shape_size_x_spin_box->value() : MIN_VAL;
+  double y_length = ui_->shape_size_y_spin_box->isEnabled() ? ui_->shape_size_y_spin_box->value() : MIN_VAL;
+  double z_length = ui_->shape_size_z_spin_box->isEnabled() ? ui_->shape_size_z_spin_box->value() : MIN_VAL;
+  if (x_length < MIN_VAL || y_length < MIN_VAL || z_length < MIN_VAL)
+  {
+    QMessageBox::warning(this, QString("Dimension is too small"), QString("Size values need to be >= %1").arg(MIN_VAL));
+    return;
+  }
+
+  // by default, name object by shape type
+  std::string selected_shape = ui_->shapes_combo_box->currentText().toStdString();
+  shapes::ShapeConstPtr shape;
+  switch (ui_->shapes_combo_box->currentData().toInt())  // fetch shape ID from current combobox item
+  {
+    case shapes::BOX:
+      shape = std::make_shared<shapes::Box>(x_length, y_length, z_length);
+      break;
+    case shapes::SPHERE:
+      shape = std::make_shared<shapes::Sphere>(0.5 * x_length);
+      break;
+    case shapes::CONE:
+      shape = std::make_shared<shapes::Cone>(0.5 * x_length, z_length);
+      break;
+    case shapes::CYLINDER:
+      shape = std::make_shared<shapes::Cylinder>(0.5 * x_length, z_length);
+      break;
+    case shapes::MESH:
     {
-      std::size_t slash = path.find_last_of("/\\");
-      std::string name = path.substr(slash + 1);
-      shapes::ShapeConstPtr shape(mesh);
-      Eigen::Isometry3d pose;
-      pose.setIdentity();
-
-      if (planning_display_->getPlanningSceneRO()->getCurrentState().hasAttachedBody(name))
-      {
-        QMessageBox::warning(this, QString("Duplicate names"), QString("An attached object named '")
-                                                                   .append(name.c_str())
-                                                                   .append("' already exists. Please rename the "
-                                                                           "attached object before importing."));
+      QUrl url;
+      if (ui_->shapes_combo_box->currentText().contains("file"))  // open from file
+        url = QFileDialog::getOpenFileUrl(this, tr("Import Object Mesh"), QString(),
+                                          "CAD files (*.stl *.obj *.dae);;All files (*.*)");
+      else  // open from URL
+        url = QInputDialog::getText(this, tr("Import Object Mesh"), tr("URL for file to import from:"),
+                                    QLineEdit::Normal, QString("http://"));
+      if (!url.isEmpty())
+        shape = loadMeshResource(url.toString().toStdString());
+      if (!shape)
         return;
-      }
+      // name mesh objects by their file name
+      selected_shape = url.fileName().toStdString();
+      break;
+    }
+    default:
+      QMessageBox::warning(this, QString("Unsupported shape"),
+                           QString("The '%1' is not supported.").arg(ui_->shapes_combo_box->currentText()));
+  }
 
-      // If the object already exists, ask the user whether to overwrite or rename
-      if (planning_display_->getPlanningSceneRO()->getWorld()->hasObject(name))
+  // find available (initial) name of object
+  int idx = 0;
+  std::string shape_name = selected_shape + "_" + std::to_string(idx);
+  while (planning_display_->getPlanningSceneRO()->getWorld()->hasObject(shape_name))
+  {
+    idx++;
+    shape_name = selected_shape + "_" + std::to_string(idx);
+  }
+
+  // Actually add object to the plugin's PlanningScene
+  {
+    planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
+    ps->getWorldNonConst()->addToObject(shape_name, shape, Eigen::Isometry3d::Identity());
+  }
+  setLocalSceneEdited();
+
+  planning_display_->addMainLoopJob(boost::bind(&MotionPlanningFrame::populateCollisionObjectsList, this));
+
+  // Automatically select the inserted object so that its IM is displayed
+  planning_display_->addMainLoopJob(
+      boost::bind(&MotionPlanningFrame::setItemSelectionInList, this, shape_name, true, ui_->collision_objects_list));
+
+  planning_display_->queueRenderSceneGeometry();
+}
+
+shapes::ShapePtr MotionPlanningFrame::loadMeshResource(const std::string& url)
+{
+  shapes::Mesh* mesh = shapes::createMeshFromResource(url);
+  if (mesh)
+  {
+    // If the object is very large, ask the user if the scale should be reduced.
+    bool object_is_very_large = false;
+    for (unsigned int i = 0; i < mesh->vertex_count; i++)
+    {
+      if ((abs(mesh->vertices[i * 3 + 0]) > LARGE_MESH_THRESHOLD) ||
+          (abs(mesh->vertices[i * 3 + 1]) > LARGE_MESH_THRESHOLD) ||
+          (abs(mesh->vertices[i * 3 + 2]) > LARGE_MESH_THRESHOLD))
       {
-        QMessageBox msg_box;
-        msg_box.setText("There exists another object with the same name.");
-        msg_box.setInformativeText("Would you like to overwrite it?");
-        msg_box.setStandardButtons(QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
-        msg_box.setDefaultButton(QMessageBox::No);
-        int ret = msg_box.exec();
-
-        switch (ret)
+        object_is_very_large = true;
+        break;
+      }
+    }
+    if (object_is_very_large)
+    {
+      QMessageBox msg_box;
+      msg_box.setText(
+          "The object is very large (greater than 10 m). The file may be in millimeters instead of meters.");
+      msg_box.setInformativeText("Attempt to fix the size by shrinking the object?");
+      msg_box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+      msg_box.setDefaultButton(QMessageBox::Yes);
+      if (msg_box.exec() == QMessageBox::Yes)
+      {
+        for (unsigned int i = 0; i < mesh->vertex_count; ++i)
         {
-          case QMessageBox::Yes:
-            // Overwrite was clicked
-            {
-              planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
-              if (ps)
-              {
-                ps->getWorldNonConst()->removeObject(name);
-                addObject(ps->getWorldNonConst(), name, shape, pose);
-              }
-            }
-            break;
-          case QMessageBox::No:
-          {
-            // Don't overwrite was clicked. Ask for another name
-            bool ok = false;
-            QString text = QInputDialog::getText(
-                this, tr("Choose a new name"), tr("Import the new object under the name:"), QLineEdit::Normal,
-                QString::fromStdString(name + "-" + boost::lexical_cast<std::string>(
-                                                        planning_display_->getPlanningSceneRO()->getWorld()->size())),
-                &ok);
-            if (ok)
-            {
-              if (!text.isEmpty())
-              {
-                name = text.toStdString();
-                planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
-                if (ps)
-                {
-                  if (ps->getWorld()->hasObject(name))
-                    QMessageBox::warning(
-                        this, "Name already exists",
-                        QString("The name '").append(name.c_str()).append("' already exists. Not importing object."));
-                  else
-                    addObject(ps->getWorldNonConst(), name, shape, pose);
-                }
-              }
-              else
-                QMessageBox::warning(this, "Object not imported", "Cannot use an empty name for an imported object");
-            }
-            break;
-          }
-          default:
-            // Pressed cancel, do nothing
-            break;
+          unsigned int i3 = i * 3;
+          mesh->vertices[i3] *= 0.001;
+          mesh->vertices[i3 + 1] *= 0.001;
+          mesh->vertices[i3 + 2] *= 0.001;
         }
       }
-      else
-      {
-        planning_scene_monitor::LockedPlanningSceneRW ps = planning_display_->getPlanningSceneRW();
-        if (ps)
-          addObject(ps->getWorldNonConst(), name, shape, pose);
-      }
     }
-    else
-    {
-      QMessageBox::warning(this, QString("Import error"), QString("Unable to import scene"));
-      return;
-    }
+
+    return shapes::ShapePtr(mesh);
+  }
+  else
+  {
+    QMessageBox::warning(this, QString("Import error"), QString("Unable to import object"));
+    return shapes::ShapePtr();
   }
 }
 
@@ -547,10 +604,10 @@ void MotionPlanningFrame::tabChanged(int index)
     selectedCollisionObjectChanged();
 }
 
-void MotionPlanningFrame::updateSceneMarkers(float wall_dt, float /*ros_dt*/)
+void MotionPlanningFrame::updateSceneMarkers(float /*wall_dt*/, float /*ros_dt*/)
 {
   if (scene_marker_)
-    scene_marker_->update(wall_dt);
+    scene_marker_->update();
 }
 
 void MotionPlanningFrame::updateExternalCommunication()

@@ -80,9 +80,10 @@ public:
                               const std::string& logger_name)
     : ActionBasedControllerHandleBase(name, logger_name), node_(node), done_(true), namespace_(ns)
   {
-    controller_action_client_ = rclcpp_action::create_client<T>(
-        node_->get_node_base_interface(), node_->get_node_graph_interface(), node_->get_node_logging_interface(),
-        node_->get_node_waitables_interface(), getActionName());
+    controller_action_client_ =
+        rclcpp_action::create_client<T>(node_->get_node_base_interface(), node_->get_node_graph_interface(),
+                                        node_->get_node_logging_interface(), node_->get_node_waitables_interface(),
+                                        getActionName());
 
     unsigned int attempts = 0;
     double timeout;
@@ -140,9 +141,16 @@ public:
   bool waitForExecution(const rclcpp::Duration& timeout = rclcpp::Duration(0)) override
   {
     auto result_future = controller_action_client_->async_get_result(current_goal_);
-    std::future_status status = result_future.wait_for(timeout.to_chrono<std::chrono::seconds>());
-    if (status == std::future_status::timeout)
-      RCLCPP_WARN(LOGGER, "waitForExecution timed out");
+    if (timeout.seconds() == 0.0)
+    {
+      result_future.wait();
+    }
+    else
+    {
+      std::future_status status = result_future.wait_for(timeout.to_chrono<std::chrono::seconds>());
+      if (status == std::future_status::timeout)
+        RCLCPP_WARN(LOGGER, "waitForExecution timed out");
+    }
     return true;
   }
 

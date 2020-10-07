@@ -6,7 +6,7 @@ The MoveIt Motion Planning Framework for **ROS 2**. For ROS 1, see [MoveIt 1](ht
 
 ## Continuous Integration Status
 
-[![Build Status](https://travis-ci.com/ros-planning/moveit2.svg?branch=master)](https://travis-ci.org/ros-planning/moveit2)
+[![Build Status](https://travis-ci.com/ros-planning/moveit2.svg?branch=main)](https://travis-ci.com/ros-planning/moveit2)
 
 ## General MoveIt Documentation
 
@@ -29,6 +29,9 @@ See [MoveIt 2 Source Build - Linux](https://moveit.ros.org/install-moveit2/sourc
 
 We've prepared a simple demo setup that you can use for quickly spinning up a simulated robot environment with MoveItCpp.
 See the [run_moveit_cpp](moveit_demo_nodes/run_moveit_cpp) demo package for further instructions and information.
+
+The package [run_move_group](moveit_demo_nodes/run_move_group) provides a simple launch file for running a MoveGroup setup.
+You can test it using the MotionPlanning display in RViz or by implementing your own MoveGroupInterface application.
 
 ## Supporters
 

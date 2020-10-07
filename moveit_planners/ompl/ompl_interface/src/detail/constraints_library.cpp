@@ -34,18 +34,19 @@
 
 /* Author: Ioan Sucan */
 
-#include <moveit/ompl_interface/detail/constraints_library.h>
-#include <moveit/ompl_interface/detail/constrained_sampler.h>
-#include <moveit/profiler/profiler.h>
-#include <ompl/tools/config/SelfConfig.h>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 #include <fstream>
+#include <moveit/ompl_interface/detail/constrained_sampler.h>
+#include <moveit/ompl_interface/detail/constraints_library.h>
+#include <moveit/profiler/profiler.h>
+#include <ompl/tools/config/SelfConfig.h>
 #include <utility>
 
 namespace ompl_interface
 {
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_ompl_planning.constraints_library");
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.ompl_planning.constraints_library");
+
 namespace
 {
 template <typename T>
@@ -249,7 +250,8 @@ ompl_interface::ConstraintApproximation::getStateSamplerAllocator(const moveit_m
                    milestones_);
 }
 /*
-void ompl_interface::ConstraintApproximation::visualizeDistribution(const std::string &link_name, unsigned int count,
+void ompl_interface::ConstraintApproximation::visualizeDistribution(const
+std::string &link_name, unsigned int count,
 visualization_msgs::MarkerArray &arr) const
 {
   moveit::core::RobotState robot_state(robot_model_);
@@ -268,7 +270,8 @@ visualization_msgs::MarkerArray &arr) const
   {
     state_storage_->getStateSpace()->as<ModelBasedStateSpace>()->copyToRobotState(robot_state,
 state_storage_->getState(rng.uniformInt(0, state_storage_->size() - 1)));
-    const Eigen::Vector3d &pos = robot_state.getLinkState(link_name)->getGlobalLinkTransform().translation();
+    const Eigen::Vector3d &pos =
+robot_state.getLinkState(link_name)->getGlobalLinkTransform().translation();
 
     visualization_msgs::Marker mk;
     mk.header.stamp = ros::Time::now();
@@ -295,7 +298,10 @@ void ompl_interface::ConstraintsLibrary::loadConstraintApproximations(const std:
   std::ifstream fin((path + "/manifest").c_str());
   if (!fin.good())
   {
-    RCLCPP_WARN(LOGGER, "Manifest not found in folder '%s'. Not loading constraint approximations.", path.c_str());
+    RCLCPP_WARN(LOGGER,
+                "Manifest not found in folder '%s'. Not loading "
+                "constraint approximations.",
+                path.c_str());
     return;
   }
 
@@ -336,7 +342,7 @@ void ompl_interface::ConstraintsLibrary::loadConstraintApproximations(const std:
     moveit_msgs::msg::Constraints msg;
     hexToMsg(serialization, msg);
     auto* cass = new ConstraintApproximationStateStorage(context_->getOMPLSimpleSetup()->getStateSpace());
-    cass->load((path + "/" + filename).c_str());
+    cass->load((std::string{ path }.append("/").append(filename)).c_str());
     ConstraintApproximationPtr cap(new ConstraintApproximation(group, state_space_parameterization, explicit_motions,
                                                                msg, filename, ompl::base::StateStoragePtr(cass),
                                                                milestones));
@@ -346,8 +352,9 @@ void ompl_interface::ConstraintsLibrary::loadConstraintApproximations(const std:
     std::size_t sum = 0;
     for (std::size_t i = 0; i < cass->size(); ++i)
       sum += cass->getMetadata(i).first.size();
-    RCLCPP_INFO(LOGGER, "Loaded %lu states (%lu milestones) and %lu connections (%0.1lf per state) "
-                        "for constraint named '%s'%s",
+    RCLCPP_INFO(LOGGER,
+                "Loaded %lu states (%lu milestones) and %lu connections (%0.1lf per state) "
+                "for constraint named '%s'%s",
                 cass->size(), cap->getMilestoneCount(), sum, (double)sum / (double)cap->getMilestoneCount(),
                 msg.name.c_str(), explicit_motions ? ". Explicit motions included." : "");
   }
@@ -419,18 +426,20 @@ ompl_interface::ConstraintsLibrary::getConstraintApproximation(const moveit_msgs
 }
 
 ompl_interface::ConstraintApproximationConstructionResults
-ompl_interface::ConstraintsLibrary::addConstraintApproximation(
-    const moveit_msgs::msg::Constraints& constr, const std::string& group,
-    const planning_scene::PlanningSceneConstPtr& scene, const ConstraintApproximationConstructionOptions& options)
+ompl_interface::ConstraintsLibrary::addConstraintApproximation(const moveit_msgs::msg::Constraints& constr,
+                                                               const std::string& group,
+                                                               const planning_scene::PlanningSceneConstPtr& scene,
+                                                               const ConstraintApproximationConstructionOptions& options)
 {
   return addConstraintApproximation(constr, constr, group, scene, options);
 }
 
 ompl_interface::ConstraintApproximationConstructionResults
-ompl_interface::ConstraintsLibrary::addConstraintApproximation(
-    const moveit_msgs::msg::Constraints& constr_sampling, const moveit_msgs::msg::Constraints& constr_hard,
-    const std::string& group, const planning_scene::PlanningSceneConstPtr& scene,
-    const ConstraintApproximationConstructionOptions& options)
+ompl_interface::ConstraintsLibrary::addConstraintApproximation(const moveit_msgs::msg::Constraints& constr_sampling,
+                                                               const moveit_msgs::msg::Constraints& constr_hard,
+                                                               const std::string& group,
+                                                               const planning_scene::PlanningSceneConstPtr& scene,
+                                                               const ConstraintApproximationConstructionOptions& options)
 {
   ConstraintApproximationConstructionResults res;
   if (context_->getGroupName() != group &&
@@ -638,7 +647,8 @@ ompl::base::StateStoragePtr ompl_interface::ConstraintsLibrary::constructConstra
     return state_storage;
   }
 
-  // TODO(davetcoleman): this function did not originally return a value, causing compiler warnings in ROS Melodic
+  // TODO(davetcoleman): this function did not originally return a value,
+  // causing compiler warnings in ROS Melodic
   // Update with more intelligent logic as needed
   RCLCPP_ERROR(LOGGER, "No StateStoragePtr found - implement better solution here.");
   return state_storage;

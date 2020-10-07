@@ -300,7 +300,8 @@ struct DistanceRequest
 };
 
 /** \brief Generic representation of the distance information for a pair of objects */
-struct DistanceResultsData
+// TODO(#267): Enable check - for some reason clang-tidy wants to rename this struct to "i0"
+struct DistanceResultsData  // NOLINT(readability-identifier-naming)
 {
   DistanceResultsData()
   {
@@ -309,6 +310,8 @@ struct DistanceResultsData
 
   /// The distance between two objects. If two objects are in collision, distance <= 0.
   double distance;
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// The nearest points
   Eigen::Vector3d nearest_points[2];
@@ -337,19 +340,6 @@ struct DistanceResultsData
     link_names[0] = "";
     link_names[1] = "";
     normal.setZero();
-  }
-
-  /// Update structure data given DistanceResultsData object
-  void operator=(const DistanceResultsData& other)
-  {
-    distance = other.distance;
-    nearest_points[0] = other.nearest_points[0];
-    nearest_points[1] = other.nearest_points[1];
-    link_names[0] = other.link_names[0];
-    link_names[1] = other.link_names[1];
-    body_types[0] = other.body_types[0];
-    body_types[1] = other.body_types[1];
-    normal = other.normal;
   }
 
   /// Compare if the distance is less than another

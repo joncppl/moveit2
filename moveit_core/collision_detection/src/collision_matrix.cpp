@@ -85,14 +85,6 @@ AllowedCollisionMatrix::AllowedCollisionMatrix(const moveit_msgs::msg::AllowedCo
   }
 }
 
-AllowedCollisionMatrix::AllowedCollisionMatrix(const AllowedCollisionMatrix& acm)
-{
-  entries_ = acm.entries_;
-  allowed_contacts_ = acm.allowed_contacts_;
-  default_entries_ = acm.default_entries_;
-  default_allowed_contacts_ = acm.default_allowed_contacts_;
-}
-
 bool AllowedCollisionMatrix::getEntry(const std::string& name1, const std::string& name2, DecideContactFn& fn) const
 {
   auto it1 = allowed_contacts_.find(name1);
@@ -203,8 +195,7 @@ void AllowedCollisionMatrix::removeEntry(const std::string& name1, const std::st
   }
 }
 
-void AllowedCollisionMatrix::setEntry(const std::string& name, const std::vector<std::string>& other_names,
-                                      bool allowed)
+void AllowedCollisionMatrix::setEntry(const std::string& name, const std::vector<std::string>& other_names, bool allowed)
 {
   for (const auto& other_name : other_names)
     if (other_name != name)

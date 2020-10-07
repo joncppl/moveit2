@@ -37,13 +37,12 @@
 #include <moveit/ompl_interface/ompl_interface.h>
 #include <moveit/planning_interface/planning_interface.h>
 #include <moveit/planning_scene/planning_scene.h>
-#include <class_loader/class_loader.hpp>
 
 #include <ompl/util/Console.h>
 
 namespace ompl_interface
 {
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_ompl_planning.ompl_planner_manager");
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.ompl_planning.ompl_planner_manager");
 static const rclcpp::Logger OMPL_LOGGER = rclcpp::get_logger("ompl");
 
 class OMPLPlannerManager : public planning_interface::PlannerManager
@@ -135,4 +134,6 @@ private:
 
 }  // namespace ompl_interface
 
-CLASS_LOADER_REGISTER_CLASS(ompl_interface::OMPLPlannerManager, planning_interface::PlannerManager)
+#include <pluginlib/class_list_macros.hpp>
+
+PLUGINLIB_EXPORT_CLASS(ompl_interface::OMPLPlannerManager, planning_interface::PlannerManager)

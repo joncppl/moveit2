@@ -36,9 +36,7 @@
 
 #include <moveit/trajectory_execution_manager/trajectory_execution_manager.h>
 #include <moveit/robot_state/robot_state.h>
-// #include <moveit_ros_planning/TrajectoryExecutionDynamicReconfigureConfig.h>
 #include <geometric_shapes/check_isometry.h>
-// #include <dynamic_reconfigure/server.h>
 #include <tf2_eigen/tf2_eigen.h>
 
 namespace trajectory_execution_manager
@@ -53,36 +51,6 @@ static const double DEFAULT_CONTROLLER_GOAL_DURATION_MARGIN = 0.5;  // allow 0.5
                                                                     // after scaling)
 static const double DEFAULT_CONTROLLER_GOAL_DURATION_SCALING =
     1.1;  // allow the execution of a trajectory to take more time than expected (scaled by a value > 1)
-
-// using namespace moveit_ros_planning; // Used for dynamic_reconfigure
-
-// TODO(henningkayser): re-enable dynamic reconfigure behavior
-// class TrajectoryExecutionManager::DynamicReconfigureImpl
-// {
-// public:
-//   DynamicReconfigureImpl(TrajectoryExecutionManager* owner)
-//     : owner_(owner) /*, dynamic_reconfigure_server_(ros::NodeHandle("~/trajectory_execution"))*/
-//   {
-//     // TODO: generate a similar thing for ros2 using the parameters
-//     // dynamic_reconfigure_server_.setCallback(
-//     //     boost::bind(&DynamicReconfigureImpl::dynamicReconfigureCallback, this, _1, _2));
-//   }
-//
-// private:
-//   // TODO: generate a similar thing for ros2 using the parameters
-//   // void dynamicReconfigureCallback(TrajectoryExecutionDynamicReconfigureConfig& config, uint32_t level)
-//   // {
-//   //   owner_->enableExecutionDurationMonitoring(config.execution_duration_monitoring);
-//   //   owner_->setAllowedExecutionDurationScaling(config.allowed_execution_duration_scaling);
-//   //   owner_->setAllowedGoalDurationMargin(config.allowed_goal_duration_margin);
-//   //   owner_->setExecutionVelocityScaling(config.execution_velocity_scaling);
-//   //   owner_->setAllowedStartTolerance(config.allowed_start_tolerance);
-//   //   owner_->setWaitForTrajectoryCompletion(config.wait_for_trajectory_completion);
-//   // }
-//
-//   TrajectoryExecutionManager* owner_;
-//   // dynamic_reconfigure::Server<TrajectoryExecutionDynamicReconfigureConfig> dynamic_reconfigure_server_;
-// };
 
 TrajectoryExecutionManager::TrajectoryExecutionManager(const rclcpp::Node::SharedPtr& node,
                                                        const moveit::core::RobotModelConstPtr& robot_model,
@@ -107,12 +75,14 @@ TrajectoryExecutionManager::~TrajectoryExecutionManager()
 {
   run_continuous_execution_thread_ = false;
   stopExecution(true);
-  // delete reconfigure_impl_;
+  private_executor_->cancel();
+  if (private_executor_thread_.joinable())
+    private_executor_thread_.join();
+  private_executor_.reset();
 }
 
 void TrajectoryExecutionManager::initialize()
 {
-  // reconfigure_impl_ = nullptr;
   verbose_ = false;
   execution_complete_ = true;
   stop_continuous_execution_ = false;
@@ -122,6 +92,7 @@ void TrajectoryExecutionManager::initialize()
   execution_duration_monitoring_ = true;
   execution_velocity_scaling_ = 1.0;
   allowed_start_tolerance_ = 0.01;
+  wait_for_trajectory_completion_ = true;
 
   allowed_execution_duration_scaling_ = DEFAULT_CONTROLLER_GOAL_DURATION_SCALING;
   allowed_goal_duration_margin_ = DEFAULT_CONTROLLER_GOAL_DURATION_MARGIN;
@@ -151,8 +122,9 @@ void TrajectoryExecutionManager::initialize()
       if (classes.size() == 1)
       {
         controller = classes[0];
-        RCLCPP_WARN(LOGGER, "Parameter '~moveit_controller_manager' is not specified but only one "
-                            "matching plugin was found: '%s'. Using that one.",
+        RCLCPP_WARN(LOGGER,
+                    "Parameter '~moveit_controller_manager' is not specified but only one "
+                    "matching plugin was found: '%s'. Using that one.",
                     controller.c_str());
       }
       else
@@ -166,8 +138,25 @@ void TrajectoryExecutionManager::initialize()
     if (!controller.empty())
       try
       {
+        // We make a node called moveit_simple_controller_manager so it's able to
+        // receive callbacks on another thread. We then copy parameters from the move_group node
+        // and then add it to the multithreadedexecutor
+        rclcpp::NodeOptions opt;
+        opt.allow_undeclared_parameters(true);
+        opt.automatically_declare_parameters_from_overrides(true);
+        controller_mgr_node_.reset(new rclcpp::Node("moveit_simple_controller_manager", opt));
+
+        auto all_params = node_->get_node_parameters_interface()->get_parameter_overrides();
+        for (const auto& param : all_params)
+          controller_mgr_node_->set_parameter(rclcpp::Parameter(param.first, param.second));
+
         controller_manager_ = controller_manager_loader_->createUniqueInstance(controller);
-        controller_manager_->initialize(node_);
+        controller_manager_->initialize(controller_mgr_node_);
+        private_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+        private_executor_->add_node(controller_mgr_node_);
+
+        // start executor on a different thread now
+        private_executor_thread_ = std::thread([this]() { private_executor_->spin(); });
       }
       catch (pluginlib::PluginlibException& ex)
       {
@@ -180,12 +169,41 @@ void TrajectoryExecutionManager::initialize()
   event_topic_subscriber_ = node_->create_subscription<std_msgs::msg::String>(
       EXECUTION_EVENT_TOPIC, 100, std::bind(&TrajectoryExecutionManager::receiveEvent, this, std::placeholders::_1));
 
-  // reconfigure_impl_ = new DynamicReconfigureImpl(this);
+  controller_mgr_node_->get_parameter("trajectory_execution.allowed_execution_duration_scaling",
+                                      allowed_execution_duration_scaling_);
+  controller_mgr_node_->get_parameter("trajectory_execution.allowed_goal_duration_margin",
+                                      allowed_goal_duration_margin_);
+  controller_mgr_node_->get_parameter("trajectory_execution.allowed_start_tolerance", allowed_start_tolerance_);
 
   if (manage_controllers_)
     RCLCPP_INFO(LOGGER, "Trajectory execution is managing controllers");
   else
     RCLCPP_INFO(LOGGER, "Trajectory execution is not managing controllers");
+
+  auto controller_mgr_parameter_set_callback = [this](std::vector<rclcpp::Parameter> parameters) {
+    auto result = rcl_interfaces::msg::SetParametersResult();
+    result.successful = true;
+    for (const auto& parameter : parameters)
+    {
+      const std::string& name = parameter.get_name();
+      if (name == "trajectory_execution.execution_duration_monitoring")
+        enableExecutionDurationMonitoring(parameter.as_bool());
+      else if (name == "trajectory_execution.allowed_execution_duration_scaling")
+        setAllowedExecutionDurationScaling(parameter.as_double());
+      else if (name == "trajectory_execution.allowed_goal_duration_margin")
+        setAllowedGoalDurationMargin(parameter.as_double());
+      else if (name == "trajectory_execution.execution_velocity_scaling")
+        setExecutionVelocityScaling(parameter.as_double());
+      else if (name == "trajectory_execution.allowed_start_tolerance")
+        setAllowedStartTolerance(parameter.as_double());
+      else if (name == "trajectory_execution.wait_for_trajectory_completion")
+        setWaitForTrajectoryCompletion(parameter.as_bool());
+      else
+        result.successful = false;
+    }
+    return result;
+  };
+  callback_handler_ = controller_mgr_node_->add_on_set_parameters_callback(controller_mgr_parameter_set_callback);
 }
 
 void TrajectoryExecutionManager::enableExecutionDurationMonitoring(bool flag)
@@ -242,8 +260,7 @@ void TrajectoryExecutionManager::receiveEvent(const std_msgs::msg::String::Share
   processEvent(event->data);
 }
 
-bool TrajectoryExecutionManager::push(const moveit_msgs::msg::RobotTrajectory& trajectory,
-                                      const std::string& controller)
+bool TrajectoryExecutionManager::push(const moveit_msgs::msg::RobotTrajectory& trajectory, const std::string& controller)
 {
   if (controller.empty())
     return push(trajectory, std::vector<std::string>());
@@ -322,8 +339,7 @@ bool TrajectoryExecutionManager::pushAndExecute(const trajectory_msgs::msg::Join
     return pushAndExecute(trajectory, std::vector<std::string>(1, controller));
 }
 
-bool TrajectoryExecutionManager::pushAndExecute(const sensor_msgs::msg::JointState& state,
-                                                const std::string& controller)
+bool TrajectoryExecutionManager::pushAndExecute(const sensor_msgs::msg::JointState& state, const std::string& controller)
 {
   if (controller.empty())
     return pushAndExecute(state, std::vector<std::string>());
@@ -568,14 +584,14 @@ void TrajectoryExecutionManager::updateControllerState(const std::string& contro
 
 void TrajectoryExecutionManager::updateControllerState(ControllerInformation& ci, const rclcpp::Duration& age)
 {
-  if (rclcpp::Clock().now() - ci.last_update_ >= age)
+  if (node_->now() - ci.last_update_ >= age)
   {
     if (controller_manager_)
     {
       if (verbose_)
         RCLCPP_INFO(LOGGER, "Updating information for controller '%s'.", ci.name_.c_str());
       ci.state_ = controller_manager_->getControllerState(ci.name_);
-      ci.last_update_ = rclcpp::Clock().now();
+      ci.last_update_ = node_->now();
     }
   }
   else if (verbose_)
@@ -950,7 +966,7 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
   RCLCPP_INFO(LOGGER, "Validating trajectory with allowed_start_tolerance %g", allowed_start_tolerance_);
 
   moveit::core::RobotStatePtr current_state;
-  if (!csm_->waitForCurrentState(rclcpp::Clock().now()) || !(current_state = csm_->getCurrentState()))
+  if (!csm_->waitForCurrentState(node_->now()) || !(current_state = csm_->getCurrentState()))
   {
     RCLCPP_WARN(LOGGER, "Failed to validate trajectory: couldn't receive full current joint state within 1s");
     return false;
@@ -983,10 +999,11 @@ bool TrajectoryExecutionManager::validate(const TrajectoryExecutionContext& cont
         // normalize positions and compare
         jm->enforcePositionBounds(&cur_position);
         jm->enforcePositionBounds(&traj_position);
-        if (fabs(cur_position - traj_position) > allowed_start_tolerance_)
+        if (jm->distance(&cur_position, &traj_position) > allowed_start_tolerance_)
         {
-          RCLCPP_ERROR(LOGGER, "\nInvalid Trajectory: start point deviates from current robot state more than %g"
-                               "\njoint '%s': expected: %g, current: %g",
+          RCLCPP_ERROR(LOGGER,
+                       "\nInvalid Trajectory: start point deviates from current robot state more than %g"
+                       "\njoint '%s': expected: %g, current: %g",
                        allowed_start_tolerance_, joint_names[i].c_str(), traj_position, cur_position);
           return false;
         }
@@ -1364,8 +1381,7 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
             active_handles_.clear();
             current_context_ = -1;
             last_execution_status_ = moveit_controller_manager::ExecutionStatus::ABORTED;
-            RCLCPP_ERROR(LOGGER, "No controller handle for controller '%s'. Aborting.",
-                         context.controllers_[i].c_str());
+            RCLCPP_ERROR(LOGGER, "No controller handle for controller '%s'. Aborting.", context.controllers_[i].c_str());
             return false;
           }
           active_handles_[i] = h;
@@ -1407,7 +1423,7 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
     }
 
     // compute the expected duration of the trajectory and find the part of the trajectory that takes longest to execute
-    rclcpp::Time current_time = rclcpp::Clock().now();
+    rclcpp::Time current_time = node_->now();
     rclcpp::Duration expected_trajectory_duration(0.0);
     int longest_part = -1;
     for (std::size_t i = 0; i < context.trajectory_parts_.size(); ++i)
@@ -1476,8 +1492,7 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
       else
       {
         rclcpp::Duration d(0.0);
-        if (rclcpp::Time(context.trajectory_parts_[longest_part].multi_dof_joint_trajectory.header.stamp) >
-            current_time)
+        if (rclcpp::Time(context.trajectory_parts_[longest_part].multi_dof_joint_trajectory.header.stamp) > current_time)
           d = rclcpp::Time(context.trajectory_parts_[longest_part].multi_dof_joint_trajectory.header.stamp) -
               current_time;
         for (trajectory_msgs::msg::MultiDOFJointTrajectoryPoint& point :
@@ -1492,10 +1507,11 @@ bool TrajectoryExecutionManager::executePart(std::size_t part_index)
       if (execution_duration_monitoring_)
       {
         if (!handle->waitForExecution(expected_trajectory_duration))
-          if (!execution_complete_ && rclcpp::Clock().now() - current_time > expected_trajectory_duration)
+          if (!execution_complete_ && node_->now() - current_time > expected_trajectory_duration)
           {
-            RCLCPP_ERROR(LOGGER, "Controller is taking too long to execute trajectory (the expected upper "
-                                 "bound for the trajectory execution was %lf seconds). Stopping trajectory.",
+            RCLCPP_ERROR(LOGGER,
+                         "Controller is taking too long to execute trajectory (the expected upper "
+                         "bound for the trajectory execution was %lf seconds). Stopping trajectory.",
                          expected_trajectory_duration.seconds());
             {
               boost::mutex::scoped_lock slock(execution_state_mutex_);
@@ -1565,7 +1581,7 @@ bool TrajectoryExecutionManager::waitForRobotToStop(const TrajectoryExecutionCon
   unsigned int no_motion_count = 0;  // count iterations with no motion
   while (time_remaining > 0. && no_motion_count < 3)
   {
-    if (!csm_->waitForCurrentState(rclcpp::Clock().now(), time_remaining) || !(cur_state = csm_->getCurrentState()))
+    if (!csm_->waitForCurrentState(node_->now(), time_remaining) || !(cur_state = csm_->getCurrentState()))
     {
       RCLCPP_WARN(LOGGER, "Failed to receive current joint state");
       return false;
@@ -1613,7 +1629,7 @@ std::pair<int, int> TrajectoryExecutionManager::getCurrentExpectedTrajectoryInde
   if (time_index_.empty())
     return std::make_pair((int)current_context_, -1);
   std::vector<rclcpp::Time>::const_iterator time_index_it =
-      std::lower_bound(time_index_.begin(), time_index_.end(), rclcpp::Clock().now());
+      std::lower_bound(time_index_.begin(), time_index_.end(), node_->now());
   int pos = time_index_it - time_index_.begin();
   return std::make_pair((int)current_context_, pos);
 }

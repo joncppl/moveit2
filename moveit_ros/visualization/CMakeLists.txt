@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(moveit_ros_visualization)
 
-set(CMAKE_CXX_STANDARD 14)
+if(NOT "${CMAKE_CXX_STANDARD}")
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -29,11 +31,12 @@ find_package(octomap_msgs REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 # TODO(JafarAbdi): Uncomment when porting each package
 # find_package(moveit_ros_perception REQUIRED)
-# find_package(moveit_ros_robot_interaction REQUIRED)
+find_package(moveit_ros_robot_interaction REQUIRED)
 # find_package(moveit_ros_warehouse REQUIRED)
 find_package(object_recognition_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(rviz2 REQUIRED)
 find_package(tf2_eigen REQUIRED)
@@ -43,10 +46,15 @@ find_package(rviz_default_plugins REQUIRED)
 find_package(rviz_ogre_vendor REQUIRED)
 
 # Qt Stuff
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt5 ${rviz_QT_VERSION} REQUIRED Core Widgets)
+set(QT_LIBRARIES Qt5::Widgets)
+macro(qt_wrap_ui)
+  qt5_wrap_ui(${ARGN})
+endmacro()
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
 add_definitions(-DQT_NO_KEYWORDS)
 
 # catkin_install_python(PROGRAMS scripts/moveit_joy.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
@@ -55,19 +63,19 @@ add_definitions(-DQT_NO_KEYWORDS)
 include_directories(rviz_plugin_render_tools/include
                     robot_state_rviz_plugin/include
                     planning_scene_rviz_plugin/include
-                    #motion_planning_rviz_plugin/include
+                    motion_planning_rviz_plugin/include
                     trajectory_rviz_plugin/include
 )
 
 add_subdirectory(rviz_plugin_render_tools)
 add_subdirectory(robot_state_rviz_plugin)
 add_subdirectory(planning_scene_rviz_plugin)
-# add_subdirectory(motion_planning_rviz_plugin)
+add_subdirectory(motion_planning_rviz_plugin)
 add_subdirectory(trajectory_rviz_plugin)
 
 install(DIRECTORY icons DESTINATION share/${PROJECT_NAME})
 
-#pluginlib_export_plugin_description_file(rviz_common motion_planning_rviz_plugin_description.xml)
+pluginlib_export_plugin_description_file(rviz_common motion_planning_rviz_plugin_description.xml)
 pluginlib_export_plugin_description_file(rviz_common trajectory_rviz_plugin_description.xml)
 pluginlib_export_plugin_description_file(rviz_common planning_scene_rviz_plugin_description.xml)
 pluginlib_export_plugin_description_file(rviz_common robot_state_rviz_plugin_description.xml)
@@ -85,12 +93,16 @@ ament_export_dependencies(moveit_ros_planning_interface)
 ament_export_dependencies(moveit_msgs)
 ament_export_dependencies(moveit_core)
 ament_export_dependencies(octomap_msgs)
+ament_export_dependencies(moveit_ros_robot_interaction)
 ament_export_dependencies(object_recognition_msgs)
 ament_export_dependencies(pluginlib)
 ament_export_dependencies(rclcpp)
+ament_export_dependencies(rclcpp_action)
 ament_export_dependencies(rclpy)
 ament_export_dependencies(rviz2)
 ament_export_dependencies(tf2_eigen)
 ament_export_dependencies(Eigen3)
 ament_export_dependencies(rviz_ogre_vendor)
 ament_package()
+
+include_directories("${OGRE_PREFIX_DIR}/include")

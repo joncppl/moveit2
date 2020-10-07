@@ -42,7 +42,10 @@
 #include <moveit/utils/lexical_casts.h>
 #include <fstream>
 
-static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_ompl_planning.ompl_interface");
+namespace ompl_interface
+{
+static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit.ompl_planning.ompl_interface");
+}  // namespace ompl_interface
 
 ompl_interface::OMPLInterface::OMPLInterface(const moveit::core::RobotModelConstPtr& robot_model,
                                              const rclcpp::Node::SharedPtr& node,
@@ -97,8 +100,9 @@ void ompl_interface::OMPLInterface::setPlannerConfigurations(const planning_inte
   context_manager_.setPlannerConfigurations(pconfig2);
 }
 
-ompl_interface::ModelBasedPlanningContextPtr ompl_interface::OMPLInterface::getPlanningContext(
-    const planning_scene::PlanningSceneConstPtr& planning_scene, const planning_interface::MotionPlanRequest& req) const
+ompl_interface::ModelBasedPlanningContextPtr
+ompl_interface::OMPLInterface::getPlanningContext(const planning_scene::PlanningSceneConstPtr& planning_scene,
+                                                  const planning_interface::MotionPlanRequest& req) const
 {
   moveit_msgs::msg::MoveItErrorCodes dummy;
   return getPlanningContext(planning_scene, req, dummy);
@@ -175,10 +179,13 @@ void ompl_interface::OMPLInterface::loadPlannerConfigurations()
     std::map<std::string, std::string> specific_group_params;
     for (const std::string& k : KNOWN_GROUP_PARAMS)
     {
-      if (node_->has_parameter(group_name_param + "." + k))
+      std::string param_name{ group_name };
+      param_name += ".";
+      param_name += k;
+      if (node_->has_parameter(param_name))
       {
         std::string value;
-        if (node_->get_parameter(group_name_param + "." + k, value))
+        if (node_->get_parameter(param_name, value))
         {
           if (!value.empty())
             specific_group_params[k] = value;
@@ -186,7 +193,7 @@ void ompl_interface::OMPLInterface::loadPlannerConfigurations()
         }
 
         double value_d;
-        if (node_->get_parameter(group_name_param + "." + k, value_d))
+        if (node_->get_parameter(param_name, value_d))
         {
           // convert to string using no locale
           specific_group_params[k] = moveit::core::toString(value_d);
@@ -194,14 +201,14 @@ void ompl_interface::OMPLInterface::loadPlannerConfigurations()
         }
 
         int value_i;
-        if (node_->get_parameter(group_name_param + "." + k, value_i))
+        if (node_->get_parameter(param_name, value_i))
         {
           specific_group_params[k] = std::to_string(value_i);
           continue;
         }
 
         bool value_b;
-        if (node_->get_parameter(group_name_param + "." + k, value_b))
+        if (node_->get_parameter(param_name, value_b))
         {
           specific_group_params[k] = std::to_string(value_b);
           continue;

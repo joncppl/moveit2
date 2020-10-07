@@ -35,7 +35,6 @@
 /* Author: Ken Anderson */
 
 #include <moveit/trajectory_processing/iterative_spline_parameterization.h>
-#include <moveit_msgs/msg/joint_limits.hpp>
 #include <moveit/robot_state/conversions.h>
 #include <vector>
 
@@ -50,8 +49,7 @@ static const rclcpp::Logger LOGGER =
 static void fit_cubic_spline(const int n, const double dt[], const double x[], double x1[], double x2[]);
 static void adjust_two_positions(const int n, const double dt[], double x[], double x1[], double x2[],
                                  const double x2_i, const double x2_f);
-static void init_times(const int n, double dt[], const double x[], const double max_velocity,
-                       const double min_velocity);
+static void init_times(const int n, double dt[], const double x[], const double max_velocity, const double min_velocity);
 static int fit_spline_and_adjust_times(const int n, double dt[], const double x[], double x1[], double x2[],
                                        const double max_velocity, const double min_velocity,
                                        const double max_acceleration, const double min_acceleration,
@@ -80,8 +78,6 @@ void globalAdjustment(std::vector<SingleJointTrajectory>& t2, int num_joints, co
 IterativeSplineParameterization::IterativeSplineParameterization(bool add_points) : add_points_(add_points)
 {
 }
-
-IterativeSplineParameterization::~IterativeSplineParameterization() = default;
 
 bool IterativeSplineParameterization::computeTimeStamps(robot_trajectory::RobotTrajectory& trajectory,
                                                         const double max_velocity_scaling_factor,
@@ -230,15 +226,17 @@ bool IterativeSplineParameterization::computeTimeStamps(robot_trajectory::RobotT
     // Error out if bounds don't make sense
     if (t2[j].max_velocity_ <= 0.0 || t2[j].max_acceleration_ <= 0.0)
     {
-      RCLCPP_ERROR(LOGGER, "Joint %d max velocity %f and max acceleration %f must be greater than zero "
-                           "or a solution won't be found.\n",
+      RCLCPP_ERROR(LOGGER,
+                   "Joint %d max velocity %f and max acceleration %f must be greater than zero "
+                   "or a solution won't be found.\n",
                    j, t2[j].max_velocity_, t2[j].max_acceleration_);
       return false;
     }
     if (t2[j].min_velocity_ >= 0.0 || t2[j].min_acceleration_ >= 0.0)
     {
-      RCLCPP_ERROR(LOGGER, "Joint %d min velocity %f and min acceleration %f must be less than zero "
-                           "or a solution won't be found.\n",
+      RCLCPP_ERROR(LOGGER,
+                   "Joint %d min velocity %f and min acceleration %f must be less than zero "
+                   "or a solution won't be found.\n",
                    j, t2[j].min_velocity_, t2[j].min_acceleration_);
       return false;
     }
@@ -299,8 +297,7 @@ bool IterativeSplineParameterization::computeTimeStamps(robot_trajectory::RobotT
                              &t2[j].accelerations_[0], t2[j].initial_acceleration_, t2[j].final_acceleration_);
       }
 
-      fit_cubic_spline(num_points, &time_diff[0], &t2[j].positions_[0], &t2[j].velocities_[0],
-                       &t2[j].accelerations_[0]);
+      fit_cubic_spline(num_points, &time_diff[0], &t2[j].positions_[0], &t2[j].velocities_[0], &t2[j].accelerations_[0]);
       for (unsigned i = 0; i < num_points; i++)
       {
         const double acc = t2[j].accelerations_[i];

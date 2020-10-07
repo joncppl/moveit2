@@ -65,7 +65,7 @@ bool FollowJointTrajectoryControllerHandle::sendTrajectory(const moveit_msgs::ms
   // Active callback
   send_goal_options.goal_response_callback = [this](const auto& future) {
     RCLCPP_INFO_STREAM(LOGGER, name_ << " started execution");
-    auto goal_handle = future.get();
+    const auto& goal_handle = future.get();
     if (!goal_handle)
       RCLCPP_WARN(LOGGER, "Goal request rejected");
     else
@@ -199,12 +199,14 @@ const char* errorCodeToMessage(int error_code)
 //    ROS_WARN_STREAM_NAMED(LOGNAME, "Invalid " << config_name);
 //}
 
-control_msgs::msg::JointTolerance& FollowJointTrajectoryControllerHandle::getTolerance(
-    std::vector<control_msgs::msg::JointTolerance>& tolerances, const std::string& name)
+control_msgs::msg::JointTolerance&
+FollowJointTrajectoryControllerHandle::getTolerance(std::vector<control_msgs::msg::JointTolerance>& tolerances,
+                                                    const std::string& name)
 {
-  auto it = std::lower_bound(
-      tolerances.begin(), tolerances.end(), name,
-      [](const control_msgs::msg::JointTolerance& lhs, const std::string& rhs) { return lhs.name < rhs; });
+  auto it = std::lower_bound(tolerances.begin(), tolerances.end(), name,
+                             [](const control_msgs::msg::JointTolerance& lhs, const std::string& rhs) {
+                               return lhs.name < rhs;
+                             });
   if (it == tolerances.cend() || it->name != name)
   {  // insert new entry if not yet available
     it = tolerances.insert(it, control_msgs::msg::JointTolerance());
