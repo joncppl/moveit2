@@ -18,3 +18,6 @@ install(TARGETS ${MOVEIT_LIB_NAME}
         RUNTIME DESTINATION bin
 )
 install(DIRECTORY include/ DESTINATION include)
+
+
+set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)

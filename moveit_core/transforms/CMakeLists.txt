@@ -26,3 +26,5 @@ if(BUILD_TESTING)
   ament_add_gtest(test_transforms test/test_transforms.cpp)
   target_link_libraries(test_transforms ${MOVEIT_LIB_NAME})
 endif()
+
+set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)

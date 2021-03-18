@@ -40,9 +40,9 @@
 namespace kinematics
 {
 // Logger
-const rclcpp::Logger KinematicsBase::LOGGER = rclcpp::get_logger("moveit_kinematics_base.kinematics_base");
-const double KinematicsBase::DEFAULT_SEARCH_DISCRETIZATION = 0.1;
-const double KinematicsBase::DEFAULT_TIMEOUT = 1.0;
+const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_kinematics_base.kinematics_base");
+//const double KinematicsBase::DEFAULT_SEARCH_DISCRETIZATION = 0.1;
+//const double KinematicsBase::DEFAULT_TIMEOUT = 1.0;
 
 static void noDeleter(const moveit::core::RobotModel* /*unused*/)
 {

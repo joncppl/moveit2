@@ -54,10 +54,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
 find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(LIBFCL REQUIRED "fcl>=0.5.0")
+find_package(fcl REQUIRED)
+
+message(STATUS "******************************************************")
+message(STATUS " FCL_LIBRARIES: ${FCL_LIBRARIES}")
+
+# pkg_check_modules(LIBFCL REQUIRED fcl)
 # replace LIBFCL_LIBRARIES with full path to the library
-find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
-set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
+#find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
+#set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
 
 
 find_package(OCTOMAP REQUIRED)
@@ -139,7 +144,7 @@ set(THIS_PACKAGE_LIBRARIES
     moveit_kinematics_metrics
     moveit_dynamics_solver
     moveit_utils
-    moveit_test_utils
+    # moveit_test_utils
 )
 
 set(THIS_PACKAGE_INCLUDE_DEPENDS

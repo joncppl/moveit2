@@ -40,10 +40,12 @@
 #include <moveit/robot_state/robot_state.h>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <boost/function.hpp>
+#include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 #include <boost/signals2.hpp>
 #include <rclcpp/rclcpp.hpp>
+
 
 namespace planning_scene_monitor
 {

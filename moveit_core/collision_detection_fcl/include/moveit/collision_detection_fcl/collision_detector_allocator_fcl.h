@@ -45,7 +45,14 @@ namespace collision_detection
 class CollisionDetectorAllocatorFCL
   : public CollisionDetectorAllocatorTemplate<CollisionEnvFCL, CollisionDetectorAllocatorFCL>
 {
+  const std::string& getName() const override
+  {
+    static const std::string name = "FCL";
+    return name;
+    // return CollisionDetectorAllocatorType::NAME;
+  }
+  
 public:
-  static const std::string NAME;  // defined in collision_env_fcl.cpp
+  // static const std::string NAME;  // defined in collision_env_fcl.cpp
 };
 }  // namespace collision_detection

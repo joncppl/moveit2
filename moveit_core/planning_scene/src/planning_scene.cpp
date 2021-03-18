@@ -53,8 +53,8 @@ namespace planning_scene
 {
 static const rclcpp::Logger LOGGER = rclcpp::get_logger("moveit_planning_scene.planning_scene");
 
-const std::string PlanningScene::OCTOMAP_NS = "<octomap>";
-const std::string PlanningScene::DEFAULT_SCENE_NAME = "(noname)";
+// const std::string PlanningScene::OCTOMAP_NS = "<octomap>";
+// const std::string PlanningScene::DEFAULT_SCENE_NAME = "(noname)";
 
 class SceneTransforms : public moveit::core::Transforms
 {
@@ -845,7 +845,7 @@ bool PlanningScene::getOctomapMsg(octomap_msgs::msg::OctomapWithPose& octomap) c
       return true;
     }
     RCLCPP_ERROR(LOGGER, "Unexpected number of shapes in octomap collision object. Not including '%s' object",
-                 OCTOMAP_NS.c_str());
+                 OCTOMAP_NS);
   }
   return false;
 }
@@ -1376,7 +1376,7 @@ bool PlanningScene::processAttachedCollisionObjectMsg(const moveit_msgs::msg::At
 
   if (object.object.id == OCTOMAP_NS)
   {
-    RCLCPP_ERROR(LOGGER, "The ID '%s' cannot be used for collision objects (name reserved)", OCTOMAP_NS.c_str());
+    RCLCPP_ERROR(LOGGER, "The ID '%s' cannot be used for collision objects (name reserved)", OCTOMAP_NS);
     return false;
   }
 
@@ -1668,7 +1668,7 @@ bool PlanningScene::processCollisionObjectMsg(const moveit_msgs::msg::CollisionO
 {
   if (object.id == OCTOMAP_NS)
   {
-    RCLCPP_ERROR(LOGGER, "The ID '%s' cannot be used for collision objects (name reserved)", OCTOMAP_NS.c_str());
+    RCLCPP_ERROR(LOGGER, "The ID '%s' cannot be used for collision objects (name reserved)", OCTOMAP_NS);
     return false;
   }
 
