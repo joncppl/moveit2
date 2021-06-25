@@ -5,6 +5,9 @@ add_library(${MOVEIT_LIB_NAME} SHARED
   src/current_state_monitor.cpp
   src/trajectory_monitor.cpp
 )
+
+target_compile_definitions(${MOVEIT_LIB_NAME} PRIVATE _SANC_DLL=1)
+
 set_target_properties(${MOVEIT_LIB_NAME} PROPERTIES VERSION "${${PROJECT_NAME}_VERSION}")
 ament_target_dependencies(${MOVEIT_LIB_NAME}
   moveit_ros_occupancy_map_monitor

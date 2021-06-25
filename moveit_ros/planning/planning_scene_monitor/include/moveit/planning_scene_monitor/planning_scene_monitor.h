@@ -52,9 +52,16 @@
 #include <memory>
 #include <thread>
 
+#if defined(_WIN32) && defined(_SANC_DLL)
+#define SANC_EXPORT __declspec(dllexport)
+#else
+#define SANC_EXPORT __declspec(dllimport)
+#endif
+
 namespace planning_scene_monitor
 {
-MOVEIT_CLASS_FORWARD(PlanningSceneMonitor)
+class SANC_EXPORT PlanningSceneMonitor;
+MOVEIT_DECLARE_PTR(PlanningSceneMonitor, PlanningSceneMonitor);
 
 /**
  * @brief PlanningSceneMonitor
@@ -82,27 +89,27 @@ public:
   };
 
   /// The name of the topic used by default for receiving joint states
-  constexpr static char DEFAULT_JOINT_STATES_TOPIC[]="/joint_states";
+  static const std::string DEFAULT_JOINT_STATES_TOPIC; // "/joint_states";
 
   /// The name of the topic used by default for attached collision objects
-  constexpr static char DEFAULT_ATTACHED_COLLISION_OBJECT_TOPIC[]= "/attached_collision_object";
+  static const std::string DEFAULT_ATTACHED_COLLISION_OBJECT_TOPIC; // "/attached_collision_object";
 
   /// The name of the topic used by default for receiving collision objects in the world
-  constexpr static char DEFAULT_COLLISION_OBJECT_TOPIC[]="/collision_object";
+  static const std::string DEFAULT_COLLISION_OBJECT_TOPIC; // "/collision_object";
 
   /// The name of the topic used by default for receiving geometry information about a planning scene (complete
   /// overwrite of world geometry)
-  constexpr static char DEFAULT_PLANNING_SCENE_WORLD_TOPIC[]= "/planning_scene_world";
+  static const std::string DEFAULT_PLANNING_SCENE_WORLD_TOPIC; // "/planning_scene_world";
 
   /// The name of the topic used by default for receiving full planning scenes or planning scene diffs
-  constexpr static char DEFAULT_PLANNING_SCENE_TOPIC[]="/planning_scene";
+  static const std::string DEFAULT_PLANNING_SCENE_TOPIC; // "/planning_scene";
 
   /// The name of the service used by default for requesting full planning scene state
-  constexpr static char DEFAULT_PLANNING_SCENE_SERVICE[]="/get_planning_scene";
+  static const std::string DEFAULT_PLANNING_SCENE_SERVICE; // "/get_planning_scene";
 
   /// The name of the topic used by default for publishing the monitored planning scene (this is without "/" in the
   /// name, so the topic is prefixed by the node name)
-  constexpr static char MONITORED_PLANNING_SCENE_TOPIC[]="monitored_planning_scene";
+  static const std::string MONITORED_PLANNING_SCENE_TOPIC; // "monitored_planning_scene";
 
   /** @brief Constructor
    *  @param robot_description The name of the ROS parameter that contains the URDF (in string format)

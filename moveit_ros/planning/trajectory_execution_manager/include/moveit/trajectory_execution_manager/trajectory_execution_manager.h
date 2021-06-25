@@ -50,9 +50,16 @@
 #include <memory>
 #include <deque>
 
+#if defined(_WIN32) && defined(_SANC_DLL)
+#define SANC_EXPORT __declspec(dllexport)
+#else
+#define SANC_EXPORT __declspec(dllimport)
+#endif
+
 namespace trajectory_execution_manager
 {
-MOVEIT_CLASS_FORWARD(TrajectoryExecutionManager)
+class SANC_EXPORT TrajectoryExecutionManager;
+MOVEIT_DECLARE_PTR(TrajectoryExecutionManager, TrajectoryExecutionManager)
 
 // Two modes:
 // Managed controllers

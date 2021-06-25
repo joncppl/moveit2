@@ -45,6 +45,12 @@
 
 #include <memory>
 
+#if defined(_WIN32) && defined(_SANC_DLL)
+#define SANC_EXPORT __declspec(dllexport)
+#else
+#define SANC_EXPORT __declspec(dllimport)
+#endif
+
 /** \brief Planning pipeline */
 namespace planning_pipeline
 {
@@ -54,7 +60,7 @@ namespace planning_pipeline
     planning plugin and the
     planning_request_adapter::PlanningRequestAdapter plugins, in the
     specified order. */
-class PlanningPipeline
+class SANC_EXPORT PlanningPipeline
 {
 public:
   /** \brief When motion plans are computed and they are supposed to be automatically displayed, they are sent to this
