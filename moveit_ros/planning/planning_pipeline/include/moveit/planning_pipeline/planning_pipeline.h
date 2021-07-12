@@ -45,10 +45,14 @@
 
 #include <memory>
 
-#if defined(_WIN32) && defined(_SANC_DLL)
+#if defined(_WIN32)
+#if defined(_SANC_DLL)
 #define SANC_EXPORT __declspec(dllexport)
 #else
 #define SANC_EXPORT __declspec(dllimport)
+#endif
+#else
+#define SANC_EXPORT
 #endif
 
 /** \brief Planning pipeline */

@@ -192,7 +192,11 @@ bool RDFLoader::loadXacroFileToString(std::string& buffer, const std::string& pa
     cmd += xacro_arg + " ";
   cmd += path;
 
+  #ifndef _WIN32
+  FILE* pipe = popen(cmd.c_str(), "r");
+  #else
   FILE* pipe = _popen(cmd.c_str(), "r");
+  #endif
   if (!pipe)
   {
     RCLCPP_ERROR(LOGGER, "Unable to load path");
@@ -205,7 +209,11 @@ bool RDFLoader::loadXacroFileToString(std::string& buffer, const std::string& pa
     if (fgets(pipe_buffer, 128, pipe) != nullptr)
       buffer += pipe_buffer;
   }
+  #ifndef _WIN32
+  pclose(pipe);
+  #else
   _pclose(pipe);
+  #endif
 
   return true;
 }

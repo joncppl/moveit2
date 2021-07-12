@@ -54,15 +54,18 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules")
 
 find_package(PkgConfig REQUIRED)
 
-find_package(fcl REQUIRED)
+if(WIN32)
+  find_package(fcl REQUIRED)
 
-message(STATUS "******************************************************")
-message(STATUS " FCL_LIBRARIES: ${FCL_LIBRARIES}")
+  message(STATUS "******************************************************")
+  message(STATUS " FCL_LIBRARIES: ${FCL_LIBRARIES}")
+else()
+  pkg_check_modules(LIBFCL REQUIRED fcl)
 
-# pkg_check_modules(LIBFCL REQUIRED fcl)
-# replace LIBFCL_LIBRARIES with full path to the library
-#find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
-#set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
+  # replace LIBFCL_LIBRARIES with full path to the library
+  find_library(LIBFCL_LIBRARIES_FULL ${LIBFCL_LIBRARIES} ${LIBFCL_LIBRARY_DIRS})
+  set(LIBFCL_LIBRARIES "${LIBFCL_LIBRARIES_FULL}")
+endif()
 
 
 find_package(OCTOMAP REQUIRED)

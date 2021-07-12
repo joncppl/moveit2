@@ -97,10 +97,9 @@ public:
   PlanningScene(
       const urdf::ModelInterfaceSharedPtr& urdf_model, const srdf::ModelConstSharedPtr& srdf_model,
       const collision_detection::WorldPtr& world = collision_detection::WorldPtr(new collision_detection::World()));
-
   
-  constexpr static char OCTOMAP_NS[] = "<octomap>";
-  constexpr static char DEFAULT_SCENE_NAME[] = "(noname)";
+  static const std::string OCTOMAP_NS;
+  static const std::string DEFAULT_SCENE_NAME;
 
   ~PlanningScene();
 
