@@ -143,9 +143,9 @@ MOVEIT_CLASS_FORWARD(KinematicsBase)
 class KinematicsBase
 {
 public:
-  // static const rclcpp::Logger LOGGER;
-  constexpr static double DEFAULT_SEARCH_DISCRETIZATION = 0.1; /* = 0.1 */
-  constexpr static double DEFAULT_TIMEOUT = 1.0;               /* = 1.0 */
+  static const rclcpp::Logger LOGGER;
+  static const double DEFAULT_SEARCH_DISCRETIZATION; /* = 0.1 */
+  static const double DEFAULT_TIMEOUT;               /* = 1.0 */
 
   /** @brief Signature for a callback to validate an IK solution. Typically used for collision checking. */
   /** @brief The signature for a callback that can compute IK */
@@ -317,7 +317,7 @@ public:
     }
 
     // Otherwise throw error because this function should have been implemented
-    // RCLCPP_ERROR(LOGGER, "This kinematic solver does not support searchPositionIK with multiple poses");
+    RCLCPP_ERROR(LOGGER, "This kinematic solver does not support searchPositionIK with multiple poses");
     return false;
   }
 
@@ -388,9 +388,9 @@ public:
    */
   virtual const std::string& getTipFrame() const
   {
-    // if (tip_frames_.size() > 1)
-    //   RCLCPP_ERROR(LOGGER, "This kinematic solver has more than one tip frame, "
-    //                        "do not call getTipFrame()");
+    if (tip_frames_.size() > 1)
+      RCLCPP_ERROR(LOGGER, "This kinematic solver has more than one tip frame, "
+                           "do not call getTipFrame()");
 
     return tip_frames_[0];
   }

@@ -49,7 +49,7 @@
 
 namespace cached_ik_kinematics_plugin
 {
-static const rclcpp::Logger LLOGGER =
+static const rclcpp::Logger LOGGER =
     rclcpp::get_logger("moveit_cached_ik_kinematics_plugin.cached_ik_kinematics_plugin");
 
 /** \brief A cache of inverse kinematic solutions */
@@ -273,7 +273,7 @@ private:
   {
     if (tip_frames.size() != 1)
     {
-      RCLCPP_ERROR(LLOGGER, "This solver does not support multiple tip frames");
+      RCLCPP_ERROR(LOGGER, "This solver does not support multiple tip frames");
       return false;
     }
 
